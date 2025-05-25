@@ -1,0 +1,234 @@
+//@version=5
+indicator("RSI Screener - By Leviathan", overlay=false, max_labels_count = 80, max_lines_count = 40, precision = 1)
+
+// Tickers lists
+g1 = 'BTC, ETH, SOL, PEPE, DOGE, WLD, WIF, TRB, ENA, NEAR, RNDR, BNB, BOME, XRP, FET, ETHFI, ARKM, SHIB, ARB, AR, BONK, FRONT, SUI, AVAX, FLOKI, RUNE, HBAR, GLM, W, ORDI, FIL, REZ, OP, FTM, AGIX, DOT, LTC, ETC, PHB, TIA'
+g2 = 'LUNC, LPT, GALA, ICP, JTO, ADA, NFP, GRT, RSR, MATIC, AI, CTXC, 1000SATS, LINK, PENDLE, ATOM, TRX, INJ, JUP, SEI, STX, LUNA, LEVER, VANRY, JASMY, APT, STRK, ALT, CKB, PIXEL, PYTH, YGG, SAGA, TAO, BCH, CFX, ATA, TNSR, IQ, CELR'
+g3 = 'OCEAN, HIGH, MANTA, CHZ, OM, OMNI, THETA, UNI, GMT, AEVO, SSV, MEME, DYDX, LDO, RLC, PORTAL, POLYX, EGLD, CRV, ID, APE, ACE, MKR, AAVE, MDT, ALGO, TRU, EOS, DYM, BLUR, MOVR, SAND, BNX, CAKE, ENS, RDNT, COS, PEOPLE, VGX, ROSE'
+g4 = 'VET, ONT, ONG, NMR, ERN, NULS, BEAMX, XAI, IMX, LQTY, CHR, PHA, POWR, MINA, ACH, NEO, PDA, TLM, KEY, GAL, AXS, REI, MAGIC, AXL, MASK, CTSI, VITE, OAX, SUSHI, FARM, SUPER, RONIN, KSM, FTT, IOTA, ADX, ANKR, SNX, XVG, ORN'
+g5 = 'VIC, BOND, TFUEL, LSK, NKN, PROM, NTRN, TWT, ASTR, XLM, BAKE, RAY, C98, HOOK, XVS, MAV, STG, COTI, HIFI, MANA, KMD, POND, RVN, WOO, XTZ, AMP, DUSK, CTK, 1INCH, QNT, IOTX, KAVA, CVC, ONE, CYBER, EDU, ZIL, SLP, GMX, API3'
+g6 = 'YFI, ENJ, STORJ, OGN, GLMR, MBOX, ALPACA, UNFI, XEC, DATA, SNT, WAVES, BEL, FLOW, FXS, MDX, STMX, CELO, RIF, UTK, DASH, GAS, HFT, AUCTION, VIB, PSG, DIA, OOKI, SANTOS, JOE, COMBO, ZEC, AMB, BLZ, OXT, COMP, LRC, LINA, ILV, ARPA'
+g7 = 'BICO, REN, LTO, KDA, KP3R, AUDIO, ZEN, SFP, SYN, BETA, METIS, ZRX, VIDT, FORTH, RAD, DAR, SXP, MTL, STEEM, FUN, QKC, MBL, WING, SYS, ALPHA, DENT, GNS, CLV, OSMO, AKRO, GFT, QTUM, SPELL, TROY, SC, PYR, BURGER, CREAM, FLUX, PERP'
+// g = 'ALCX, SKL, EPX, ATM, GTC, FIRO, CELR, KLAY, FLM, BNT, HOT, STORJ, QI, OGN, LIT, CVP, CVX, VOXEL, WAXP, AGLD, TKO, BIFI, DCR, AERGO, BADGER, PROS, FIDA, WBTC, ALICE, STPT, JUV, WBETH, ALPINE, PAXG, FOR, OMG, DEXE, XNO, AVA, RARE
+// g = 'DODO, UMA, HARD, IOST, QUICK, ACM, REEF, REQ, PIVX, FIO, BTTC, CHESS, WAN, ACA, PUNDIX, JST, WRX, MLN, BSW, BAND, LOOM, ASR, LAZIO, OG, DGB, SCRT, ICX, BAL, GHST, ELF, DEGO, VTHO, GNO, PORTO, RPL, LOKA, STRAX, NEXO, DF, IRIS
+  
+// Settings Groups
+gn1 = 'Appearance'
+gn2 = 'Ticker selection'
+
+// General Settings
+dispType  = input.string('Screener', 'Display as', ['Screener', 'Group Average RSI'])
+rsiSource = input.string('Price', 'RSI Source', ['Price', 'OBV', 'Open Interest'])
+rsiLength = input.int(14, 'RSI Length')
+rsiTf     = input.timeframe('', 'RSI Timeframe')
+symGroup  = input.string('#1', 'Group', ['#1', '#2', '#3', '#4', '#5', '#6', '#7'])
+
+// Appearance Settings
+showChg    = input.bool(true, 'RSI Change Lines',                         inline = 'bl',  group = gn1)
+showAvg    = input.bool(false, 'Average RSI Line',                        inline = 'bl',  group = gn1)
+barSpace   = input.int(4, 'Space (bars)',                                                 group = gn1, tooltip = 'Number of bars between each RSI label.')
+offset     = input.int(0, 'Offset',                                                       group = gn1, tooltip = 'Shift all labels right or left for N (Offset) number of bars')
+useHm      = input.bool(true, 'Gradient coloring',                                        group = gn1)
+col0       = input.color(#e1c8a4 , '     RSI: 50 - 0    ',              inline = '050', group = gn1)
+col00      = input.color(#ec407a, '-',                                  inline = '050', group = gn1)
+col1       = input.color(#e1c8a4, '     RSI: 50 - 100 ',                inline = '010', group = gn1)
+col11      = input.color(#3179f5, '-',                                  inline = '010', group = gn1)
+useBg      = input.bool(true, 'Color zones',                                              group = gn1)
+zone1pCol  = input.color(color.rgb(120, 123, 134, 95), '     Zones>50', inline = 'z1',  group = gn1)
+zone2pCol  = input.color(color.rgb(91, 156, 246, 100), '',              inline = 'z1',  group = gn1)
+zone3pCol  = input.color(color.rgb(91, 156, 246, 100), '',              inline = 'z1',  group = gn1)
+zone1nCol  = input.color(color.rgb(120, 123, 134, 95), '     Zones<50', inline = 'z2',  group = gn1)
+zone2nCol  = input.color(color.rgb(198, 40, 93, 100), '',               inline = 'z2',  group = gn1)
+zone3nCol  = input.color(color.rgb(198, 40, 93, 100), '',               inline = 'z2',  group = gn1)
+
+// Ticker group #1
+group1  = input.text_area(g1, 'Ticker group #1', group = gn2)
+group1p = input.string('BINANCE:', '',inline = 'g1', group = gn2)
+group1s = input.string('USDT',    '' ,inline = 'g1', group = gn2)
+
+// Ticker group #2
+group2  = input.text_area(g2, 'Ticker group #2', group = gn2)
+group2p = input.string('BINANCE:', '',inline = 'g2', group = gn2)
+group2s = input.string('USDT',    '' ,inline = 'g2', group = gn2)
+
+// Ticker group #3
+group3  = input.text_area(g3, 'Ticker group #3', group = gn2)
+group3p = input.string('BINANCE:', '',inline = 'g3', group = gn2)
+group3s = input.string('USDT',    '' ,inline = 'g3', group = gn2)
+
+// Ticker group #4
+group4  = input.text_area(g4, 'Ticker group #4', group = gn2)
+group4p = input.string('BINANCE:', '',inline = 'g4', group = gn2)
+group4s = input.string('USDT',    '' ,inline = 'g4', group = gn2)
+
+// Ticker group #5
+group5  = input.text_area(g5, 'Ticker group #5', group = gn2)
+group5p = input.string('BINANCE:', '',inline = 'g5', group = gn2)
+group5s = input.string('USDT',    '' ,inline = 'g5', group = gn2)
+
+// Ticker group #6
+group6  = input.text_area(g6, 'Ticker group #6', group = gn2)
+group6p = input.string('BINANCE:', '',inline = 'g6', group = gn2)
+group6s = input.string('USDT',    '' ,inline = 'g6', group = gn2)
+
+// Ticker group #7
+group7  = input.text_area(g7, 'Ticker group #7', group = gn2)
+group7p = input.string('BINANCE:', '',inline = 'g7', group = gn2)
+group7s = input.string('USDT',    '' ,inline = 'g7', group = gn2)
+
+// Arrays
+syms                = array.new_float()
+prev                = array.new_float()
+var label[] pLabels = array.new_label(40, na)
+var line[]  pLines  = array.new_line (40, na)
+
+// Getting ticker info based on selected group
+selection = symGroup=='#1' ? group1  : symGroup=='#2' ? group2  : symGroup=='#3' ? group3  : symGroup=='#4' ? group4  : symGroup=='#5' ? group5  : symGroup=='#6' ? group6  : group7
+pref      = symGroup=='#1' ? group1p : symGroup=='#2' ? group2p : symGroup=='#3' ? group3p : symGroup=='#4' ? group4p : symGroup=='#5' ? group5p : symGroup=='#6' ? group6p : group7p
+suf       = symGroup=='#1' ? group1s : symGroup=='#2' ? group2s : symGroup=='#3' ? group3s : symGroup=='#4' ? group4s : symGroup=='#5' ? group5s : symGroup=='#6' ? group6s : group7s
+
+// Function by @allanster - Extract the first ticker ID from a list, return the extracted ticker ID and an updated list with the extracted ticker removed.
+feed(back) =>                                            
+    loop  = back                                         
+    getT  = string(na)                                   
+    if str.length(loop) == 0                             
+        getT := string(na)                               
+        loop := string(na)                               
+    else                                                 
+        getP  = nz(str.pos(loop, ','), str.length(loop)) 
+        getT := str.substring(loop, 0, getP)             
+        dlim  = 1                                        
+        if str.match(loop, ', ') == ', '                 
+            dlim := 2                                    
+        clrT  = str.substring(loop, 0, getP + dlim)      
+        loop := str.replace(loop, clrT, '')              
+    [getT, loop]    
+
+// Function to calculate RSI
+rsiSrc = rsiSource=='OBV' ? ta.obv : close
+f_rsi(_tidN) =>
+    tckr = rsiSource=='Open Interest' ? _tidN + 'USDT.P_OI' : pref + _tidN + suf                                     
+    call = request.security(tckr, rsiTf, ta.rsi(rsiSrc, rsiLength), ignore_invalid_symbol = true)                     
+    if str.length(_tidN) == 0                             
+        call := float(na)      
+    call     
+
+// Function to push RSI values into arrays
+f_push(val) =>
+    if not na(val)
+        array.push(syms, val)
+        array.push(prev, val[14])
+
+// Function for gradient/heatmap coloring based on RSI value
+f_grad(x) =>
+    above = color.from_gradient(x, 50, 80, col1, col11)
+    below = color.from_gradient(x, 20, 50, col00, col0)
+    x > 50 ? above : below          
+
+// Function to create or update a label
+createOrUpdateLabel(arr, idx, x_val, y_val, txt) =>
+    if not na(y_val)
+        lbl  = array.get(arr, idx)
+        lcol = useHm ? f_grad(y_val) : color.gray
+        ttp = txt + ' RSI: ' + str.tostring(math.round(y_val, 1))
+        if na(lbl)
+            lbl := label.new(x_val, y_val, text = txt + '\n' + '●', textcolor = lcol, style = label.style_none, size = size.normal, tooltip = ttp)
+            array.set(arr, idx, lbl)
+        else
+            label.set_xy(lbl, x_val, y_val)
+            label.set_textcolor(lbl, lcol)
+            label.set_tooltip(lbl, ttp)
+
+// Function to create or update a line
+createOrUpdateLine(arr, idx, x_val, y_val, y2_val) =>
+    if not na(y_val)
+        li = array.get(arr, idx)
+        if na(li)
+            li := line.new(x_val, y_val, x_val, y2_val, color = color.gray, style = line.style_dotted)
+            array.set(arr, idx, li)
+        else
+            line.set_xy1(li, x_val, y_val)
+            line.set_xy2(li, x_val, y2_val )                           
+
+// Extract tickers sequentially from the input list using feed() function
+[tid1,  out1]  = feed(selection), [tid2,   out2]  = feed(out1),  [tid3,   out3]  = feed(out2),  [tid4,   out4]  = feed(out3)
+[tid5,  out5]  = feed(out4),      [tid6,   out6]  = feed(out5),  [tid7,   out7]  = feed(out6),  [tid8,   out8]  = feed(out7)
+[tid9,  out9]  = feed(out8),      [tid10, out10]  = feed(out9),  [tid11, out11]  = feed(out10), [tid12, out12]  = feed(out11)
+[tid13, out13] = feed(out12),     [tid14, out14]  = feed(out13), [tid15, out15]  = feed(out14), [tid16, out16]  = feed(out15)
+[tid17, out17] = feed(out16),     [tid18, out18]  = feed(out17), [tid19, out19]  = feed(out18), [tid20, out20]  = feed(out19)
+[tid21, out21] = feed(out20),     [tid22, out22]  = feed(out21), [tid23, out23]  = feed(out22), [tid24, out24]  = feed(out23)
+[tid25, out25] = feed(out24),     [tid26, out26]  = feed(out25), [tid27, out27]  = feed(out26), [tid28, out28]  = feed(out27)
+[tid29, out29] = feed(out28),     [tid30, out30]  = feed(out29), [tid31, out31]  = feed(out30), [tid32, out32]  = feed(out31)
+[tid33, out33] = feed(out32),     [tid34, out34]  = feed(out33), [tid35, out35]  = feed(out34), [tid36, out36]  = feed(out35)
+[tid37, out37] = feed(out36),     [tid38, out38]  = feed(out37), [tid39, out39]  = feed(out38), [tid40, out40]  = feed(out39)
+
+// Calculate RSI for each ticker
+sym1  = f_rsi(tid1) , sym2  = f_rsi(tid2) , sym3  = f_rsi(tid3) , sym4  = f_rsi(tid4)
+sym5  = f_rsi(tid5) , sym6  = f_rsi(tid6) , sym7  = f_rsi(tid7) , sym8  = f_rsi(tid8)
+sym9  = f_rsi(tid9) , sym10 = f_rsi(tid10), sym11 = f_rsi(tid11), sym12 = f_rsi(tid12)
+sym13 = f_rsi(tid13), sym14 = f_rsi(tid14), sym15 = f_rsi(tid15), sym16 = f_rsi(tid16)
+sym17 = f_rsi(tid17), sym18 = f_rsi(tid18), sym19 = f_rsi(tid19), sym20 = f_rsi(tid20)
+sym21 = f_rsi(tid21), sym22 = f_rsi(tid22), sym23 = f_rsi(tid23), sym24 = f_rsi(tid24)
+sym25 = f_rsi(tid25), sym26 = f_rsi(tid26), sym27 = f_rsi(tid27), sym28 = f_rsi(tid28)
+sym29 = f_rsi(tid29), sym30 = f_rsi(tid30), sym31 = f_rsi(tid31), sym32 = f_rsi(tid32)
+sym33 = f_rsi(tid33), sym34 = f_rsi(tid34), sym35 = f_rsi(tid35), sym36 = f_rsi(tid36)
+sym37 = f_rsi(tid37), sym38 = f_rsi(tid38), sym39 = f_rsi(tid39), sym40 = f_rsi(tid40)
+
+// Push RSI values into arrays, so they can be used in a loop when generating labels
+f_push(sym1 ), f_push(sym2 ), f_push(sym3 ), f_push(sym4 )
+f_push(sym5 ), f_push(sym6 ), f_push(sym7 ), f_push(sym8 )
+f_push(sym9 ), f_push(sym10), f_push(sym11), f_push(sym12)
+f_push(sym13), f_push(sym14), f_push(sym15), f_push(sym16)
+f_push(sym17), f_push(sym18), f_push(sym19), f_push(sym20)
+f_push(sym21), f_push(sym22), f_push(sym23), f_push(sym24)
+f_push(sym25), f_push(sym26), f_push(sym27), f_push(sym28)
+f_push(sym29), f_push(sym30), f_push(sym31), f_push(sym32)
+f_push(sym33), f_push(sym34), f_push(sym35), f_push(sym36)
+f_push(sym37), f_push(sym38), f_push(sym39), f_push(sym40)
+
+symnames = str.split(selection, ',')
+
+// Generate labels for all available symbols 
+if array.size(syms) > 0 and dispType=='Screener'
+    // Loop through the symbols and create/update each label
+    for i = 0 to array.size(syms) - 1
+        x_val = bar_index[i * barSpace + offset + 4]
+        y_val = array.get(syms, i)
+        createOrUpdateLabel(pLabels, i, x_val, y_val, array.get(symnames, i))
+        if showChg
+            createOrUpdateLine(pLines, i, x_val, y_val, array.get(prev, i))
+
+    if showAvg
+        avg = array.avg(syms) 
+        l  = line.new(bar_index, avg, bar_index[array.size(syms) * barSpace + offset + 4], avg, color = f_grad(avg), style = line.style_dashed)
+        la = label.new(bar_index, avg, '◂ AVG RSI (' + str.tostring(math.round(avg, 1)) + ')', style = label.style_label_left, textcolor = f_grad(avg), color = color.rgb(255, 255, 255, 100))
+        line.delete(l[1])
+        label.delete(la[1])
+
+// Generate levels
+p100 = hline(100,  'Level 100', color = color.new(color.gray, 80), display = display.none)
+p70  = hline(85 ,  'Level 70' , color = color.new(color.gray, 80))
+p60  = hline(70 ,  'Level 60' , color = color.new(color.gray, 80))
+p50  = hline(50 ,  'Level 50' , color = color.new(color.gray, 80))
+p40  = hline(30 ,  'Level 50' , color = color.new(color.gray, 80))
+p30  = hline(15 ,  'Level 30' , color = color.new(color.gray, 80))
+p0   = hline(0  ,  'Level 0'  , color = color.new(color.gray, 80), display = display.none)
+
+// Fill the zones between levels
+fill(p50, p60 , color = useBg ? zone1pCol : na)
+fill(p60, p70 , color = useBg ? zone2pCol : na)
+fill(p70, p100, color = useBg ? zone3pCol : na)
+fill(p50, p40,  color = useBg ? zone1nCol : na)
+fill(p40, p30,  color = useBg ? zone2nCol : na)
+fill(p30, p0 ,  color = useBg ? zone3nCol : na)
+
+// Plot average RSI of all tickers in a group
+plot(dispType=='Group Average RSI' ? array.avg(syms) : na, 'Group Average RSI' ,color = color.gray)
+
+// Generate a title table
+titleTable = table.new(position.top_center, 2, 2)
+
+if barstate.islast
+    tfs = (rsiTf=='' ? timeframe.period : str.tostring(rsiTf)) + (timeframe.isminutes ? 'm' : na)
+    table.cell(titleTable, 0, 0, '• ' + 'RSI Screener' + ' •',    text_size = size.normal, text_color = color.gray, text_font_family = font.family_monospace)
+    table.cell(titleTable, 0, 1, str.tostring(tfs) + ' • ' + str.tostring(rsiLength) + ' • ' + str.tostring(rsiSource), text_size = size.small,  text_color = color.gray, text_font_family = font.family_monospace)
