@@ -8,11 +8,10 @@
     "lint": "standard"
   },
   "devDependencies": {
-    "smee-client": "^2.0.1",
     "standard": "^17.0.0"
   },
   "dependencies": {
     "dotenv": "^16.0.3",
-    "octokit": "^4.1.1"
+    "technicalindicators": "^3.0.0"
   }
 }
