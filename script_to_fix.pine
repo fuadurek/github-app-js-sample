@@ -1,0 +1,137 @@
+//@version=5
+indicator('Multiple Instrument Automation Screener with MACD+RSI%10 VERSI%20 BUY SELL', overlay=true)
+
+////////////
+// INPUTS //
+macd_fast_len = input.int(12, title="MACD Fast Length", group="Indicators")
+macd_slow_len = input.int(26, title="MACD Slow Length", group="Indicators")
+macd_signal_len = input.int(9, title="MACD Signal Length", group="Indicators")
+rsi_len = input.int(14, title="RSI Length", group="Indicators")
+
+/////////////
+// SYMBOLS //
+u01 = input.bool(true, title="", group='Symbols', inline='s01')
+u02 = input.bool(true, title="", group='Symbols', inline='s02')
+u03 = input.bool(true, title="", group='Symbols', inline='s03')
+u04 = input.bool(true, title="", group='Symbols', inline='s04')
+u05 = input.bool(true, title="", group='Symbols', inline='s05')
+u06 = input.bool(true, title="", group='Symbols', inline='s06')
+u07 = input.bool(true, title="", group='Symbols', inline='s07')
+u08 = input.bool(true, title="", group='Symbols', inline='s08')
+u09 = input.bool(true, title="", group='Symbols', inline='s09')
+u10 = input.bool(true, title="", group='Symbols', inline='s10')
+u11 = input.bool(true,  title = "", group = 'Symbols', inline = 's11')
+u12 = input.bool(true,  title = "", group = 'Symbols', inline = 's12')
+u13 = input.bool(true,  title = "", group = 'Symbols', inline = 's13')
+u14 = input.bool(true,  title = "", group = 'Symbols', inline = 's14')
+u15 = input.bool(true,  title = "", group = 'Symbols', inline = 's15')
+
+s01 = input.symbol('BTCUSDT', group='Symbols', inline='s01')
+s02 = input.symbol('XRPUSDT', group='Symbols', inline='s02')
+s03 = input.symbol('DOGEUSDT', group='Symbols', inline='s03')
+s04 = input.symbol('BNBUSDT', group='Symbols', inline='s04')
+s05 = input.symbol('ETHUSDT', group='Symbols', inline='s05')
+s06 = input.symbol('ADAUSDT', group='Symbols', inline='s06')
+s07 = input.symbol('XRPBTC', group='Symbols', inline='s07')
+s08 = input.symbol('DOGEBTC', group='Symbols', inline='s08')
+s09 = input.symbol('TRXUSDT', group='Symbols', inline='s09')
+s10 = input.symbol('LTCUSDT', group='Symbols', inline='s10')
+s11 = input.symbol('SOLUSDT',  group = 'Symbols', inline = 's11')
+s12 = input.symbol('MATICUSDT', group = 'Symbols', inline = 's12')
+s13 = input.symbol('AVAXUSDT',  group = 'Symbols', inline = 's13')
+s14 = input.symbol('DOTUSDT',   group = 'Symbols', inline = 's14')
+s15 = input.symbol('LINKUSDT',  group = 'Symbols', inline = 's15')
+
+//////////////////
+// CALCULATIONS //
+only_symbol(s) =>
+    symParts = str.split(s, ":")
+    array.size(symParts) > 1 ? array.get(symParts, 1) : s
+
+id_symbol(s) =>
+    switch s
+        1  => only_symbol(s01)
+        2  => only_symbol(s02)
+        3  => only_symbol(s03)
+        4  => only_symbol(s04)
+        5  => only_symbol(s05)
+        6  => only_symbol(s06)
+        7  => only_symbol(s07)
+        8  => only_symbol(s08)
+        9  => only_symbol(s09)
+        10 => only_symbol(s10)
+        11 => only_symbol(s11)
+        12 => only_symbol(s12)
+        13 => only_symbol(s13)
+        14 => only_symbol(s14)
+        15 => only_symbol(s15)
+        => na
+
+screener_func() =>
+    rsi_val = ta.rsi(close, rsi_len)
+    rsi_prev = ta.rsi(close[1], rsi_len)
+    rsi_delta = rsi_val - rsi_prev
+    [macd_line, signal_line, _] = ta.macd(close, macd_fast_len, macd_slow_len, macd_signal_len)
+    macd_signal = ta.crossover(macd_line, signal_line) ? 1 : ta.crossunder(macd_line, signal_line) ? -1 : 0
+    ma_200 = ta.sma(close, 200)
+    signal = close > ma_200 ? 1 : close < ma_200 ? -1 : 0
+    [close, rsi_val, macd_line, signal, rsi_delta, macd_signal, ma_200] // Added close and ma_200
+
+ma_above_below_alert(close, ma_200) =>
+    if ta.crossover(close, ma_200)
+        alert("Price is now ABOVE the 200 MA!", freq = alert.freq_once_per_bar)
+    if ta.crossunder(close, ma_200)
+        alert("Price is now BELOW the 200 MA!", freq = alert.freq_once_per_bar)
+
+screenerMtx = matrix.new<float>(0, 6, na)
+
+screenerFun(numSym, sym, flg) =>
+    // Destructure the 7 values returned by screener_func()
+    [sym_close, rsi_val, macd_line_val, signal_val, rsi_delta_val, macd_signal_val, sym_ma200] = request.security(sym, timeframe.period, screener_func())
+
+    // Call alert with the actual close price of the symbol and its MA200
+    ma_above_below_alert(sym_close, sym_ma200)
+
+    // The array for the matrix stores the values needed for the table
+    // numSym, rsi, macd, signal (derived from MA), rsi_delta, macd_signal
+    arr = array.from(numSym, rsi_val, macd_line_val, signal_val, rsi_delta_val, macd_signal_val)
+    if flg
+        matrix.add_row(screenerMtx, matrix.rows(screenerMtx), arr)
+
+screenerFun(1, s01, u01),  screenerFun(2, s02, u02),  screenerFun(3, s03, u03),  screenerFun(4, s04, u04),
+screenerFun(5, s05, u05),  screenerFun(6, s06, u06),  screenerFun(7, s07, u07),  screenerFun(8, s08, u08),
+screenerFun(9, s09, u09),  screenerFun(10, s10, u10),  screenerFun(11, s11, u11),  screenerFun(12, s12, u12),
+screenerFun(13, s13, u13),  screenerFun(14, s14, u14),  screenerFun(15, s15, u15)
+
+///////////
+// PLOTS //
+
+var tbl = table.new(position.top_right, 10, 30, frame_color=#151715, frame_width=1, border_width=2, border_color=color.new(color.white, 100))
+
+if barstate.islast
+    table.clear(tbl, 0, 0, 5, 10)
+    table.cell(tbl, 0, 0, 'Symbol', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 0, 'RSI', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(tbl, 2, 0, 'MACD', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(tbl, 3, 0, '200 MA Signal', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(tbl, 4, 0, 'RSI %10/20', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(tbl, 5, 0, 'MACD Signal', text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+
+    if matrix.rows(screenerMtx) > 0
+        for i = 0 to matrix.rows(screenerMtx) - 1
+            rsi = matrix.get(screenerMtx, i, 1)
+            macd = matrix.get(screenerMtx, i, 2)
+            signal = matrix.get(screenerMtx, i, 3)
+            rsi_delta = matrix.get(screenerMtx, i, 4)
+            macd_signal = matrix.get(screenerMtx, i, 5)
+
+            signal_text = signal == 1 ? 'Above' : signal == -1 ? 'Below' : 'Neutral'
+            rsi_signal = rsi_delta > 20 ? 'BUY++' : rsi_delta > 10 ? 'BUY' : rsi_delta < -20 ? 'SELL--' : rsi_delta < -10 ? 'SELL' : 'Neutral'
+            macd_signal_text = macd_signal == 1 ? 'MACD BUY' : macd_signal == -1 ? 'MACD SELL' : 'Neutral'
+            color_bg = signal == 1 ? color.green : signal == -1 ? color.red : color.gray
+            table.cell(tbl, 0, i + 1, id_symbol(matrix.get(screenerMtx, i, 0)), text_halign=text.align_left, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+            table.cell(tbl, 1, i + 1, str.tostring(rsi, '#.##'), text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+            table.cell(tbl, 2, i + 1, str.tostring(macd, '#.##'), text_halign=text.align_center, bgcolor=color.gray, text_color=color.white, text_size=size.small)
+            table.cell(tbl, 3, i + 1, signal_text, text_halign=text.align_center, bgcolor=color_bg, text_color=color.white, text_size=size.small)
+            table.cell(tbl, 4, i + 1, rsi_signal, text_halign=text.align_center, bgcolor=color_bg, text_color=color.white, text_size=size.small)
+            table.cell(tbl, 5, i + 1, macd_signal_text, text_halign=text.align_center, bgcolor=color_bg, text_color=color.white, text_size=size.small)

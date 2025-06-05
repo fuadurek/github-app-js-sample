@@ -1,0 +1,404 @@
+//@version=5
+indicator("Jules' Complex Multi-Feature Indicator", shorttitle="JulesCMFI", overlay=true, timeframe="")
+
+// === INPUTS ===
+
+// --- RSI 1000-day Signals ---
+grp_rsi_long = "RSI 1000-day Signals"
+rsi_long_len = input.int(1000, title="Long RSI Length", group=grp_rsi_long)
+rsi_long_buy_level = input.float(50.0, title="Long RSI Buy Level (>)", group=grp_rsi_long)
+rsi_long_sell_level = input.float(50.0, title="Long RSI Sell Level (<)", group=grp_rsi_long) // User specified <50 for SELL
+
+// --- RSI Panel (1H & 4H) ---
+grp_rsi_panel = "RSI Panel (Multi-Timeframe)"
+rsi_panel_show = input.bool(true, title="Show RSI Panel?", group=grp_rsi_panel)
+rsi_panel_rsi_len = input.int(14, title="Panel RSI Length", group=grp_rsi_panel)
+rsi_panel_tf1 = input.timeframe("60", title="Panel Timeframe 1", group=grp_rsi_panel)
+rsi_panel_tf2 = input.timeframe("240", title="Panel Timeframe 2", group=grp_rsi_panel)
+rsi_panel_ob = input.float(70.0, title="Panel RSI Overbought", group=grp_rsi_panel)
+rsi_panel_os = input.float(30.0, title="Panel RSI Oversold", group=grp_rsi_panel)
+
+// --- Trend Lines (50-candle High/Low) ---
+grp_trendline = "Trend Lines"
+trendline_show = input.bool(true, title="Show Trend Lines?", group=grp_trendline)
+trendline_lookback = input.int(50, title="Trend Line Lookback", group=grp_trendline)
+
+// --- Liquidity Zones (Simplified) ---
+// Inputs will be added here later when the logic is more defined.
+// For now, a placeholder toggle.
+grp_liq_zones = "Liquidity Zones" // This line is repeated by user, but it's harmless, effectively same group name. Let's use the new var for clarity if needed or simplify. For now, assume grp_liq_zones is the one to use.
+liq_zones_show = input.bool(true, title="Show Liquidity Zones?", group=grp_liq_zones)
+// New inputs for Pivots, using the same group name as specified in NewCode `grp_liq_zones_pivots = "Liquidity Zones"`
+liq_zone_pivot_left = input.int(5, title="Pivot Left Bars", group=grp_liq_zones)
+liq_zone_pivot_right = input.int(5, title="Pivot Right Bars", group=grp_liq_zones)
+liq_zones_show_pivots = input.bool(true, title="Show Pivot Points?", group=grp_liq_zones) // Keep separate toggle from main one for now
+
+// --- Component Signals ---
+// Volume Spike
+grp_vol_spike = "Volume Spike Signal"
+vol_spike_enabled = input.bool(true, title="Enable Volume Spike Signal?", group=grp_vol_spike)
+volume_spike_ma_len = input.int(20, title="Volume MA Length", group=grp_vol_spike)
+volume_spike_factor = input.float(2.0, title="Volume Spike Factor", group=grp_vol_spike)
+vol_spike_show_plots = input.bool(false, title="Show Volume Spike Plots? ", group=grp_vol_spike)
+
+// EMA Signal
+grp_ema_signal = "EMA Signal"
+ema_signal_enabled = input.bool(true, title="Enable EMA Signal?", group=grp_ema_signal)
+ema_fast_len = input.int(10, title="Fast EMA Length", group=grp_ema_signal)
+ema_slow_len = input.int(20, title="Slow EMA Length", group=grp_ema_signal)
+ema_signal_show_plots = input.bool(false, title="Show EMA Plots? ", group=grp_ema_signal)
+
+// MACD Signal
+grp_macd_signal = "MACD Signal"
+macd_signal_enabled = input.bool(true, title="Enable MACD Signal?", group=grp_macd_signal)
+macd_fast_len = input.int(12, title="MACD Fast Length", group=grp_macd_signal)
+macd_slow_len = input.int(26, title="MACD Slow Length", group=grp_macd_signal)
+macd_signal_len = input.int(9, title="MACD Signal Length", group=grp_macd_signal)
+macd_signal_show_plots = input.bool(false, title="Show MACD Signal Plots? ", group=grp_macd_signal)
+
+// Supertrend Signal
+grp_supertrend_signal = "Supertrend Signal"
+supertrend_signal_enabled = input.bool(true, title="Enable Supertrend Signal?", group=grp_supertrend_signal) // For the line itself
+supertrend_atr_period = input.int(10, title="Supertrend ATR Period", group=grp_supertrend_signal)
+supertrend_factor = input.float(3.0, title="Supertrend Factor", group=grp_supertrend_signal)
+supertrend_show_component_signal_plots = input.bool(false, title="Show Supertrend Change Plots? ", group=grp_supertrend_signal)
+
+// --- Combined Buy/Sell Signals ---
+// No specific inputs here yet, will depend on combination logic.
+// For now, a toggle for the final combined signals.
+grp_combined_signals = "Combined Signals"
+combined_signals_show_plots = input.bool(true, title="Plot Combined Buy/Sell Signals?", group=grp_combined_signals)
+min_buy_signals_confluence = input.int(2, title="Min Buy Signals for Confluence", minval=1, group=grp_combined_signals)
+min_sell_signals_confluence = input.int(2, title="Min Sell Signals for Confluence", minval=1, group=grp_combined_signals)
+
+
+// === END OF INPUTS ===
+
+// === LOGIC ===
+
+// === RSI 1000-day Signals ===
+grp_rsi_long_plots = "RSI 1000-day Signals" // Re-using group for plot toggle
+rsi_long_show_plots = input.bool(true, title="Show Long RSI Signal Plots?", group=grp_rsi_long_plots)
+
+var int rsi_long_signal = 0 // 0 for neutral, 1 for buy, -1 for sell
+
+if (true) // Block for local variable scope if needed, or just direct calculation
+    rsi_long_value = ta.rsi(close, rsi_long_len)
+
+    // Original user comments mentioned "RSI > 50 BUY" and "RSI < 50 SELL".
+    // The provided code uses ta.crossover for BUY and ta.crossunder for SELL.
+    // ta.crossover(rsi, level) means RSI just crossed *above* level. This aligns with "RSI > level" for a buy signal event.
+    // ta.crossunder(rsi, level) means RSI just crossed *below* level. This aligns with "RSI < level" for a sell signal event.
+    // This interpretation for event-based signals is kept.
+
+    rsi_crossed_above_buy_level = ta.crossover(rsi_long_value, rsi_long_buy_level)
+    rsi_crossed_below_sell_level = ta.crossunder(rsi_long_value, rsi_long_sell_level)
+
+    if (rsi_crossed_above_buy_level)
+        rsi_long_signal := 1
+    else if (rsi_crossed_below_sell_level)
+        rsi_long_signal := -1
+    // Note: rsi_long_signal will retain its state (1 or -1) after a cross
+    // until an opposite cross occurs. It does not reset to 0 automatically.
+    // This is a common way to handle such signals.
+
+// Plotting the signals
+plotshape(rsi_long_show_plots and rsi_long_signal == 1, title="Long RSI Buy Signal", location=location.belowbar, color=color.new(color.green, 0), style=shape.labelup, text="RSI Buy", textcolor=color.new(color.white,0), size=size.small)
+plotshape(rsi_long_show_plots and rsi_long_signal == -1, title="Long RSI Sell Signal", location=location.abovebar, color=color.new(color.red, 0), style=shape.labeldown, text="RSI Sell", textcolor=color.new(color.white,0), size=size.small)
+
+
+// === Multi-Timeframe RSI Panel ===
+var table rsi_panel = na
+
+if (rsi_panel_show and barstate.islastconfirmed) // Only draw/update table on the last confirmed bar
+    // Fetch RSI data from different timeframes
+    rsi_tf1_value = request.security(syminfo.tickerid, rsi_panel_tf1, ta.rsi(close, rsi_panel_rsi_len), lookahead=barmerge.lookahead_on)
+    rsi_tf2_value = request.security(syminfo.tickerid, rsi_panel_tf2, ta.rsi(close, rsi_panel_rsi_len), lookahead=barmerge.lookahead_on)
+
+    // Determine colors for RSI values
+    f_getRsiColor = (rsiVal, obLevel, osLevel) =>
+        color_rsi = rsiVal > obLevel ? color.new(color.red, 25) :
+                    rsiVal < osLevel ? color.new(color.green, 25) :
+                    color.new(color.gray, 25)
+        color_rsi
+
+    rsi_tf1_color = f_getRsiColor(rsi_tf1_value, rsi_panel_ob, rsi_panel_os)
+    rsi_tf2_color = f_getRsiColor(rsi_tf2_value, rsi_panel_ob, rsi_panel_os)
+
+    // Create or clear the table
+    if na(rsi_panel) // Create table only once
+        rsi_panel := table.new(position.top_right, 3, 2, border_width=1) // 3 columns (Label, TF1, TF2), 2 rows (Header, Values)
+    else
+        table.clear(rsi_panel) // Clear previous content if table exists
+
+    // Populate table headers
+    table.cell(rsi_panel, 0, 0, "RSI Panel", bgcolor=color.new(color.blue, 70), text_color=color.white, text_halign=text.align_center)
+    table.cell(rsi_panel, 1, 0, str.format("{0} ({1})", timeframe.tostring(rsi_panel_tf1), str.tostring(rsi_panel_rsi_len)), bgcolor=color.new(color.gray,70), text_color=color.white, text_halign=text.align_center)
+    table.cell(rsi_panel, 2, 0, str.format("{0} ({1})", timeframe.tostring(rsi_panel_tf2), str.tostring(rsi_panel_rsi_len)), bgcolor=color.new(color.gray,70), text_color=color.white, text_halign=text.align_center)
+
+    // Populate table values
+    table.cell(rsi_panel, 0, 1, "Value:", text_halign=text.align_left, text_color=color.white)
+    table.cell(rsi_panel, 1, 1, str.tostring(rsi_tf1_value, "#.##"), bgcolor=rsi_tf1_color, text_color=color.black, text_halign=text.align_center)
+    table.cell(rsi_panel, 2, 1, str.tostring(rsi_tf2_value, "#.##"), bgcolor=rsi_tf2_color, text_color=color.black, text_halign=text.align_center)
+
+// Fallback cleanup if the panel is disabled after being shown
+if (not rsi_panel_show and not na(rsi_panel))
+    table.delete(rsi_panel)
+    rsi_panel := na
+
+
+// === Trend Lines (50-candle High/Low) ===
+if (trendline_show)
+    highest_high_line = ta.highest(high, trendline_lookback)
+    lowest_low_line = ta.lowest(low, trendline_lookback)
+
+    plot(highest_high_line, title="Highest High Trend Line", color=color.new(color.orange, 25), linewidth=1, style=plot.style_line)
+    plot(lowest_low_line, title="Lowest Low Trend Line", color=color.new(color.purple, 25), linewidth=1, style=plot.style_line)
+
+
+// === Liquidity Zones (Simplified Pivots) ===
+if (liq_zones_show and liq_zones_show_pivots) // Depends on both main toggle and specific pivot toggle
+    // Identify pivot points. Value is price at pivot, occurs 'liq_zone_pivot_right' bars after actual pivot.
+    pivot_high_price = ta.pivothigh(high, liq_zone_pivot_left, liq_zone_pivot_right)
+    pivot_low_price = ta.pivotlow(low, liq_zone_pivot_left, liq_zone_pivot_right)
+
+    // Plot shapes at the bar where the pivot is confirmed
+    // Note: The plot appears 'liq_zone_pivot_right' bars after the actual high/low bar of the pivot.
+    plotshape(pivot_high_price, title="Pivot High", location=location.abovebar,
+              color=color.new(color.maroon, 0), style=shape.triangledown, size=size.small,
+              offset = -liq_zone_pivot_right) // Offset to plot on the actual bar of the pivot
+
+    plotshape(pivot_low_price, title="Pivot Low", location=location.belowbar,
+              color=color.new(color.navy, 0), style=shape.triangleup, size=size.small,
+              offset = -liq_zone_pivot_right) // Offset to plot on the actual bar of the pivot
+
+
+// === Component Signal Calculations ===
+
+// --- Volume Spike Signal ---
+var int volume_spike_signal_state = 0 // 0: neutral, 1: buy spike, -1: sell spike
+if (vol_spike_enabled)
+    vol_ma = ta.sma(volume, volume_spike_ma_len)
+    is_volume_spike = volume > vol_ma * volume_spike_factor
+
+    // Reset on each bar, only active for the bar where spike occurs
+    volume_spike_signal_state := 0
+    if (is_volume_spike)
+        if (close > open) // Up bar
+            volume_spike_signal_state := 1
+        else if (close < open) // Down bar
+            volume_spike_signal_state := -1
+
+    if (vol_spike_show_plots)
+        plotshape(volume_spike_signal_state == 1, title="Volume Buy Spike", location=location.belowbar, color=color.new(color.lime, 40), style=shape.circle, size=size.tiny, text="V+", textcolor=color.black)
+        plotshape(volume_spike_signal_state == -1, title="Volume Sell Spike", location=location.abovebar, color=color.new(color.red, 40), style=shape.circle, size=size.tiny, text="V-", textcolor=color.black)
+
+// --- EMA Signal ---
+var int ema_signal_state = 0 // 0: neutral, 1: buy (fast > slow), -1: sell (fast < slow)
+if (ema_signal_enabled)
+    ema_fast_value = ta.ema(close, ema_fast_len)
+    ema_slow_value = ta.ema(close, ema_slow_len)
+
+    plot(ema_fast_value, title="Fast EMA", color=color.new(color.aqua, 0), linewidth=1, display=display.none) // Display none, but allow enabling from style
+    plot(ema_slow_value, title="Slow EMA", color=color.new(color.fuchsia,0), linewidth=1, display=display.none)
+
+    ema_crossed_above = ta.crossover(ema_fast_value, ema_slow_value)
+    ema_crossed_below = ta.crossunder(ema_fast_value, ema_slow_value)
+
+    if (ema_crossed_above)
+        ema_signal_state := 1
+    else if (ema_crossed_below)
+        ema_signal_state := -1
+    // ema_signal_state persists until the next cross
+
+    if (ema_signal_show_plots)
+        plotshape(ema_crossed_above, title="EMA Buy Cross", location=location.belowbar, color=color.new(color.aqua, 0), style=shape.triangleup, size=size.small, text="EMA↑")
+        plotshape(ema_crossed_below, title="EMA Sell Cross", location=location.abovebar, color=color.new(color.fuchsia, 0), style=shape.triangledown, size=size.small, text="EMA↓")
+
+
+// --- MACD Signal ---
+var int macd_signal_state = 0 // 0: neutral, 1: buy cross, -1: sell cross
+if (macd_signal_enabled)
+    [macd_line, macd_signal_line, _] = ta.macd(close, macd_fast_len, macd_slow_len, macd_signal_len)
+
+    // Optional: Plot MACD lines (hidden by default)
+    plot(macd_line, title="MACD Line", color=color.new(color.blue, 80), display=display.none)
+    plot(macd_signal_line, title="MACD Signal Line", color=color.new(color.orange, 80), display=display.none)
+
+    macd_crossed_above = ta.crossover(macd_line, macd_signal_line)
+    macd_crossed_below = ta.crossunder(macd_line, macd_signal_line)
+
+    if (macd_crossed_above)
+        macd_signal_state := 1
+    else if (macd_crossed_below)
+        macd_signal_state := -1
+    // macd_signal_state persists
+
+    if (macd_signal_show_plots)
+        plotshape(macd_crossed_above, title="MACD Buy Cross", location=location.belowbar, color=color.new(color.blue,0), style=shape.triangleup, size=size.small, text="MACD↑")
+        plotshape(macd_crossed_below, title="MACD Sell Cross", location=location.abovebar, color=color.new(color.orange,0), style=shape.triangledown, size=size.small, text="MACD↓")
+
+// --- Supertrend Component Signal (Trend Change) ---
+var int supertrend_component_signal_state = 0 // 0: neutral, 1: trend changed to up, -1: trend changed to down
+// Note: supertrend_direction (1 for up, -1 for down) is already calculated in the Supertrend section
+if (supertrend_signal_enabled) // Depends on the main Supertrend toggle
+    is_supertrend_change_up = supertrend_direction == 1 and supertrend_direction[1] == -1
+    is_supertrend_change_down = supertrend_direction == -1 and supertrend_direction[1] == 1
+
+    if (is_supertrend_change_up)
+        supertrend_component_signal_state := 1
+    else if (is_supertrend_change_down)
+        supertrend_component_signal_state := -1
+    else
+        supertrend_component_signal_state := 0 // Signal is only for the bar of change
+
+    if (supertrend_show_component_signal_plots)
+        plotshape(is_supertrend_change_up, title="Supertrend Up Change", location=location.belowbar, color=color.new(color.green, 0), style=shape.labelup, size=size.tiny, text="ST↑")
+        plotshape(is_supertrend_change_down, title="Supertrend Down Change", location=location.abovebar, color=color.new(color.red, 0), style=shape.labeldown, size=size.tiny, text="ST↓")
+
+
+// === Combined Buy/Sell Signals ===
+var bool master_buy_signal = false
+var bool master_sell_signal = false
+
+if (true) // Block for local variable scope if needed
+    buy_score = 0
+    sell_score = 0
+
+    // 1. Long RSI Signal (State: 1 for buy, -1 for sell, 0 neutral - though it persists after cross)
+    // No specific enable toggle for rsi_long_signal itself, it's always calculated if script runs.
+    // We can assume if the user uses combined signals, they are aware of this base RSI signal.
+    if (rsi_long_signal == 1)
+        buy_score += 1
+    else if (rsi_long_signal == -1)
+        sell_score += 1
+
+    // 2. Volume Spike Signal (Event: 1 for buy, -1 for sell, 0 neutral - current bar only)
+    if (vol_spike_enabled and volume_spike_signal_state == 1)
+        buy_score += 1
+    else if (vol_spike_enabled and volume_spike_signal_state == -1)
+        sell_score += 1
+
+    // 3. EMA Signal (State: 1 for buy, -1 for sell, 0 neutral - persists after cross)
+    if (ema_signal_enabled and ema_signal_state == 1)
+        buy_score += 1
+    else if (ema_signal_enabled and ema_signal_state == -1)
+        sell_score += 1
+
+    // 4. MACD Signal (State: 1 for buy, -1 for sell, 0 neutral - persists after cross)
+    if (macd_signal_enabled and macd_signal_state == 1)
+        buy_score += 1
+    else if (macd_signal_enabled and macd_signal_state == -1)
+        sell_score += 1
+
+    // 5. Supertrend Component Signal (Event: 1 for change to up, -1 for change to down - current bar only)
+    if (supertrend_signal_enabled and supertrend_component_signal_state == 1) // Uses main supertrend toggle
+        buy_score += 1
+    else if (supertrend_signal_enabled and supertrend_component_signal_state == -1)
+        sell_score += 1
+
+    // Determine Master Signals based on confluence
+    // A Buy signal is valid if buy_score meets threshold AND there are no active sell signals conflicting
+    master_buy_signal := (buy_score >= min_buy_signals_confluence) and (sell_score == 0)
+    // A Sell signal is valid if sell_score meets threshold AND there are no active buy signals conflicting
+    master_sell_signal := (sell_score >= min_sell_signals_confluence) and (buy_score == 0)
+
+
+if (combined_signals_show_plots)
+    plotshape(master_buy_signal, title="Master Buy Signal", location=location.belowbar, color=color.new(color.green, 0), style=shape.diamond, size=size.normal, text="MASTER BUY")
+    plotshape(master_sell_signal, title="Master Sell Signal", location=location.abovebar, color=color.new(color.red, 0), style=shape.diamond, size=size.normal, text="MASTER SELL")
+
+// --- Supertrend Calculation ---
+// Source: Adapted from public Supertrend implementations (e.g., by KivancOzbilgic)
+atr_val = ta.atr(supertrend_atr_period)
+hl2_val = (high + low) / 2
+
+long_stop = hl2_val - supertrend_factor * atr_val
+short_stop = hl2_val + supertrend_factor * atr_val
+
+var float long_stop_prev = na
+var float short_stop_prev = na
+var int supertrend_direction = 1 // 1 for uptrend, -1 for downtrend
+
+// Initialize prev stops on the first calculation pass, ensuring they are not na
+// Use a value that won't immediately trigger a flip based on hl2 or close if possible,
+// or simply initialize them to the current calculated stops.
+long_stop_prev := na(long_stop_prev[1]) ? long_stop :
+                  close[1] > long_stop_prev[1] ? math.max(long_stop, long_stop_prev[1]) : long_stop
+
+short_stop_prev := na(short_stop_prev[1]) ? short_stop :
+                   close[1] < short_stop_prev[1] ? math.min(short_stop, short_stop_prev[1]) : short_stop
+
+// Determine current trend direction
+// If current close is above previous short_stop_prev (potential flip to uptrend or continuation of uptrend)
+//   supertrend_direction should be 1 (uptrend)
+// Else if current close is below previous long_stop_prev (potential flip to downtrend or continuation of downtrend)
+//   supertrend_direction should be -1 (downtrend)
+// Else (price is between the previous long and short stops)
+//   supertrend_direction remains same as previous bar's direction
+//
+// Initialize direction on first bar, assume uptrend to start if close > hl2, else downtrend.
+// Or more simply, use a default and let it correct.
+if na(supertrend_direction[1]) // First calculable bar
+    supertrend_direction := close > hl2_val ? 1 : -1
+else
+    supertrend_direction := close > short_stop_prev[1] ? 1 :
+                            close < long_stop_prev[1] ? -1 :
+                            supertrend_direction[1]
+
+// Calculate the final Supertrend line
+st_line = supertrend_direction == 1 ? long_stop_prev : short_stop_prev
+
+// --- Supertrend Plotting ---
+supertrend_plot_color = supertrend_direction == 1 ? color.new(color.green, 0) : color.new(color.red, 0)
+plot(supertrend_signal_enabled ? st_line : na, title="Supertrend", color=supertrend_plot_color, linewidth=2)
+
+
+// Placeholder for future logic (if any other main plots are needed)
+// plot(na) // Original placeholder removed/commented
+
+
+// === ALERT CONDITIONS ===
+
+// 1. Long RSI Buy Signal Alert
+alertcondition(condition=rsi_long_signal == 1 and rsi_long_signal[1] != 1,
+                 title="Long RSI Buy",
+                 message="Long RSI Buy Signal (1000-day) for {{ticker}} at {{close}}")
+
+// 2. Long RSI Sell Signal Alert
+alertcondition(condition=rsi_long_signal == -1 and rsi_long_signal[1] != -1,
+                 title="Long RSI Sell",
+                 message="Long RSI Sell Signal (1000-day) for {{ticker}} at {{close}}")
+
+// 3. Master Combined Buy Signal Alert
+alertcondition(condition=master_buy_signal and not master_buy_signal[1],
+                 title="Master Buy Signal",
+                 message="Master Combined Buy Signal for {{ticker}} at {{close}}")
+
+// 4. Master Combined Sell Signal Alert
+alertcondition(condition=master_sell_signal and not master_sell_signal[1],
+                 title="Master Sell Signal",
+                 message="Master Combined Sell Signal for {{ticker}} at {{close}}")
+
+// 5. New Pivot High Confirmed Alert
+alertcondition(condition=liq_zones_show and liq_zones_show_pivots and not na(ta.pivothigh(high, liq_zone_pivot_left, liq_zone_pivot_right)) and na(ta.pivothigh(high, liq_zone_pivot_left, liq_zone_pivot_right)[1]),
+                 title="New Pivot High",
+                 message="New Pivot High confirmed for {{ticker}}")
+
+
+// 6. New Pivot Low Confirmed Alert
+alertcondition(condition=liq_zones_show and liq_zones_show_pivots and not na(ta.pivotlow(low, liq_zone_pivot_left, liq_zone_pivot_right)) and na(ta.pivotlow(low, liq_zone_pivot_left, liq_zone_pivot_right)[1]),
+                 title="New Pivot Low",
+                 message="New Pivot Low confirmed for {{ticker}}")
+
+// 7. Price Crosses Above Highest High Trendline Alert
+var float _hhh_for_alert = trendline_show ? ta.highest(high, trendline_lookback) : na
+alertcondition(condition=trendline_show and ta.cross(close, _hhh_for_alert),
+                 title="Price Crosses HH Trendline",
+                 message="Price crossed above Highest High Trendline ({{plot('Highest High Trend Line')}}) for {{ticker}} at {{close}}")
+
+// 8. Price Crosses Below Lowest Low Trendline Alert
+var float _lll_for_alert = trendline_show ? ta.lowest(low, trendline_lookback) : na
+alertcondition(condition=trendline_show and ta.cross(close, _lll_for_alert),
+                 title="Price Crosses LL Trendline",
+                 message="Price crossed below Lowest Low Trendline ({{plot('Lowest Low Trend Line')}}) for {{ticker}} at {{close}}")
