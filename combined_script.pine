@@ -1,0 +1,462 @@
+//@version=5
+indicator("Birləşdirilmiş Skript", overlay=true, max_lines_count=500, max_labels_count=500, max_bars_back=500)
+
+// === 1. SKRİPT: Nadaraya-Watson Envelope [LuxAlgo] ===
+// (Burada orijinal kod saxlanılıb, yalnız `indicator()` silinib)
+//------------------------------------------------------------------------------
+//Settings
+//-----------------------------------------------------------------------------{
+h = input.float(8.,'Bandwidth', minval = 0, group = "Nadaraya-Watson")
+mult = input.float(3., minval = 0, group = "Nadaraya-Watson")
+src = input(close, 'Source', group = "Nadaraya-Watson")
+
+repaint = input(true, 'Repainting Smoothing', tooltip = 'Repainting is an effect where the indicators historical output is subject to change over time. Disabling repainting will cause the indicator to output the endpoints of the calculations', group = "Nadaraya-Watson")
+
+//Style
+upCss = input.color(color.teal, 'Colors', inline = 'inline1', group = 'Nadaraya-Watson Style')
+dnCss = input.color(color.red, '', inline = 'inline1', group = 'Nadaraya-Watson Style')
+
+//-----------------------------------------------------------------------------}
+//Functions
+//-----------------------------------------------------------------------------{
+//Gaussian window
+gauss(x, h_param) => math.exp(-(math.pow(x, 2)/(h_param * h_param * 2))) // Renamed h to h_param to avoid conflict with global h
+
+//-----------------------------------------------------------------------------}
+//Append lines
+//-----------------------------------------------------------------------------{
+n = bar_index
+
+var ln = array.new_line(0)
+
+if barstate.isfirst and repaint
+    for i = 0 to 499
+        array.push(ln,line.new(na,na,na,na))
+
+//-----------------------------------------------------------------------------}
+//End point method
+//-----------------------------------------------------------------------------{
+var coefs = array.new_float(0)
+var den = 0.
+
+if barstate.isfirst and not repaint
+    for i = 0 to 499
+        w = gauss(i, h) // Uses global h input
+        coefs.push(w)
+
+    den := coefs.sum()
+
+out = 0.
+if not repaint
+    for i = 0 to 499
+        out += src[i] * coefs.get(i)
+    out /= den
+mae = ta.sma(math.abs(src - out), 499) * mult
+
+upper = out + mae
+lower = out - mae
+
+//-----------------------------------------------------------------------------}
+//Compute and display NWE
+//-----------------------------------------------------------------------------{
+float y2 = na
+float y1 = na
+
+nwe = array.new<float>(0)
+if barstate.islast and repaint
+    sae = 0.
+    //Compute and set NWE point
+    for i = 0 to math.min(499,n - 1)
+        sum = 0.
+        sumw = 0.
+        //Compute weighted mean
+        for j = 0 to math.min(499,n - 1)
+            w = gauss(i - j, h) // Uses global h input
+            sum += src[j] * w
+            sumw += w
+
+        y2 := sum / sumw
+        sae += math.abs(src[i] - y2)
+        nwe.push(y2)
+
+    sae := sae / math.min(499,n - 1) * mult
+    for i = 0 to math.min(499,n - 1)
+        if i%2
+            line.new(n-i+1, y1 + sae, n-i, nwe.get(i) + sae, color = upCss)
+            line.new(n-i+1, y1 - sae, n-i, nwe.get(i) - sae, color = dnCss)
+
+        if src[i] > nwe.get(i) + sae and src[i+1] < nwe.get(i) + sae
+            label.new(n-i, src[i], '▼', color = color(na), style = label.style_label_down, textcolor = dnCss, textalign = text.align_center)
+        if src[i] < nwe.get(i) - sae and src[i+1] > nwe.get(i) - sae
+            label.new(n-i, src[i], '▲', color = color(na), style = label.style_label_up, textcolor = upCss, textalign = text.align_center)
+
+        y1 := nwe.get(i)
+
+//-----------------------------------------------------------------------------}
+//Dashboard
+//-----------------------------------------------------------------------------{
+var tb = table.new(position.top_right, 1, 1
+  , bgcolor = #1e222d
+  , border_color = #373a46
+  , border_width = 1
+  , frame_color = #373a46
+  , frame_width = 1)
+
+if repaint
+    tb.cell(0, 0, 'Repainting Mode Enabled', text_color = color.white, text_size = size.small)
+
+//-----------------------------------------------------------------------------}
+//Plot
+//-----------------------------------------------------------------------------}
+plot(repaint ? na : out + mae, 'Upper', upCss)
+plot(repaint ? na : out - mae, 'Lower', dnCss)
+
+//Crossing Arrows
+plotshape(ta.crossunder(close, out - mae) ? low : na, "Crossunder", shape.labelup, location.absolute, color(na), 0 , text = '▲', textcolor = upCss, size = size.tiny)
+plotshape(ta.crossover(close, out + mae) ? high : na, "Crossover", shape.labeldown, location.absolute, color(na), 0 , text = '▼', textcolor = dnCss, size = size.tiny)
+
+// === 2. SKRİPT: "📈 Akıllı Fibo Panel + AI Skoru + Kombine Sinyal Gücü" ===
+// (Burada orijinal kod saxlanılıb, yalnız `indicator()` silinib)
+// === Kullanıcı Ayarları ===
+Fibo_lookbackBars = input.int(150, title="Fibo Dip/Tepe Aralığı", group="Fibo Panel")
+Fibo_showPanel = input.bool(true, title="Fibo Paneli Göster", group="Fibo Panel")
+Fibo_showZones = input.bool(true, title="Fibo Renkli Bölgeleri Göster", group="Fibo Panel")
+
+// === Tepe-Dip ve Fibo Seviyeleri ===
+Fibo_highestHigh = ta.highest(high, Fibo_lookbackBars) // Prefixed
+Fibo_lowestLow = ta.lowest(low, Fibo_lookbackBars)   // Prefixed
+Fibo_priceRange_ = Fibo_highestHigh - Fibo_lowestLow      // Prefixed
+
+// === Fibonacci Seviyeleri ===
+Fibo_fib0 = Fibo_lowestLow        // Prefixed
+Fibo_fib236 = Fibo_lowestLow + Fibo_priceRange_ * 0.236 // Prefixed
+Fibo_fib382 = Fibo_lowestLow + Fibo_priceRange_ * 0.382 // Prefixed
+Fibo_fib5 = Fibo_lowestLow + Fibo_priceRange_ * 0.5     // Prefixed
+Fibo_fib618 = Fibo_lowestLow + Fibo_priceRange_ * 0.618 // Prefixed
+Fibo_fib786 = Fibo_lowestLow + Fibo_priceRange_ * 0.786 // Prefixed
+Fibo_fib1 = Fibo_highestHigh      // Prefixed
+
+// === Yüzdelik Değişim ===
+Fibo_priceChangePercent = (close - close[1]) / close[1] * 100 // Prefixed
+Fibo_priceChangeText = str.tostring(Fibo_priceChangePercent, format.percent) // Prefixed
+
+// === Trend Gücü (Hacimle çarpılmış momentum) ===
+Fibo_trendPower = math.abs(Fibo_priceChangePercent * volume) // Prefixed
+
+// === AL/SAT Sinyal Mantığı ===
+Fibo_buyZone = close < Fibo_fib382    // Prefixed
+Fibo_sellZone = close > Fibo_fib618   // Prefixed
+Fibo_neutralZone = not Fibo_buyZone and not Fibo_sellZone // Prefixed
+
+// === AI Skoru Hesabı ===
+Fibo_fiboScore = Fibo_buyZone ? 1 : Fibo_sellZone ? -1 : 0 // Prefixed
+Fibo_aiScore = (Fibo_priceChangePercent * 0.5) + (Fibo_fiboScore * 50) // Prefixed
+
+// === AL/SAT Panel Metni ve Renk ===
+Fibo_signalText = Fibo_buyZone ? "ALIM FIRSATI" :  // Prefixed
+             Fibo_sellZone ? "SATIŞ BÖLGESİ" :
+             "NÖTR"
+
+Fibo_signalColor = Fibo_buyZone ? color.lime : // Prefixed
+              Fibo_sellZone ? color.red :
+              color.gray
+
+// === Fibo Renkli Bölgeler ===
+bgcolor(Fibo_showZones and close >= Fibo_fib0 and close <= Fibo_fib382 ? color.new(color.lime, 90) : na)
+bgcolor(Fibo_showZones and close >= Fibo_fib618 and close <= Fibo_fib1 ? color.new(color.red, 90) : na)
+bgcolor(Fibo_showZones and close > Fibo_fib382 and close < Fibo_fib618 ? color.new(color.gray, 92) : na)
+
+// === Fibonacci Çizgileri ===
+plot(Fibo_showZones ? Fibo_fib0 : na, "Fibo 0", color=color.gray) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib236 : na, "Fibo 0.236", color=color.teal) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib382 : na, "Fibo 0.382", color=color.blue) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib5 : na, "Fibo 0.5", color=color.orange) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib618 : na, "Fibo 0.618", color=color.green) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib786 : na, "Fibo 0.786", color=color.purple) // Added Fibo_showZones condition
+plot(Fibo_showZones ? Fibo_fib1 : na, "Fibo 1", color=color.red) // Added Fibo_showZones condition
+
+// === PANEL ===
+var table Fibo_panel = table.new(position.middle_right, 1, 7, frame_color=color.black, border_width=1) // Prefixed
+
+if Fibo_showPanel
+    table.cell(Fibo_panel, 0, 0, "💹 Fiyat: " + str.tostring(close, "#.##"), text_color=color.white)
+    table.cell(Fibo_panel, 0, 1, "📈 Değişim: " + Fibo_priceChangeText, text_color=color.white)
+    table.cell(Fibo_panel, 0, 2, "🔊 Hacim: " + str.tostring(volume, "#.##"), text_color=color.white)
+    table.cell(Fibo_panel, 0, 3, "⚡ Trend Gücü: " + str.tostring(Fibo_trendPower, "#.##"), text_color=color.white)
+    table.cell(Fibo_panel, 0, 4, "🧭 Sinyal: " + Fibo_signalText, text_color=Fibo_signalColor)
+    table.cell(Fibo_panel, 0, 5, "📊 Bölge: " + (Fibo_buyZone ? "ALIM" : Fibo_sellZone ? "SATIŞ" : "NÖTR"), text_color=Fibo_signalColor)
+    table.cell(Fibo_panel, 0, 6, "🤖 AI Skoru: " + str.tostring(Fibo_aiScore, "#.##"), text_color=color.yellow)
+
+// === EMA 100 + RSI Strategy (Əlavə Edilmiş) ===
+// Parametrlər
+Fibo_length_EMA100 = input.int(100, "Fibo EMA Period", group="Fibo EMA/RSI Strat")
+Fibo_rsi_len = input.int(14, "Fibo RSI Length", group="Fibo EMA/RSI Strat")
+Fibo_rsi_os = input.int(30, "Fibo RSI Oversold", group="Fibo EMA/RSI Strat")
+Fibo_rsi_ob = input.int(70, "Fibo RSI Overbought", group="Fibo EMA/RSI Strat")
+
+// EMA Hesablamaları
+Fibo_ema_high = ta.ema(high, Fibo_length_EMA100) // Prefixed
+Fibo_ema_low = ta.ema(low, Fibo_length_EMA100)  // Prefixed
+
+// RSI Hesablamaları
+Fibo_rsi = ta.rsi(close, Fibo_rsi_len) // Prefixed
+
+// Sinyal Şərtləri
+Fibo_buy_condition = close > Fibo_ema_high and close[1] < Fibo_ema_high[1] and Fibo_rsi < Fibo_rsi_os // Prefixed
+Fibo_sell_condition = close < Fibo_ema_low and close[1] > Fibo_ema_low[1] and Fibo_rsi > Fibo_rsi_ob // Prefixed
+
+// Plot EMA High və Low
+plot(Fibo_ema_high, title="Fibo EMA High", color=color.blue, linewidth=2)
+plot(Fibo_ema_low, title="Fibo EMA Low", color=color.orange, linewidth=2)
+
+// Sinyal Markerləri
+plotshape(Fibo_buy_condition, title="Fibo Buy", location=location.belowbar, color=color.green, text="BUY")
+plotshape(Fibo_sell_condition, title="Fibo Sell", location=location.abovebar, color=color.red, text="SELL")
+
+// === Kombine Sinyal Gücü (MACD, Momentum, PSAR, EMA50, ROC) ===
+// --- 1. GİRDİLER (Kullanıcı tarafından ayarlanabilir) ---
+// MACD Ayarları
+Fibo_fast_length_MACD = input.int(12, title="Fibo MACD Fast Len", group="Fibo Combined Signal")
+Fibo_slow_length_MACD = input.int(26, title="Fibo MACD Slow Len", group="Fibo Combined Signal")
+Fibo_signal_length_MACD = input.int(9, title="Fibo MACD Signal Len", group="Fibo Combined Signal")
+
+// Momentum ve ROC Ayarları
+Fibo_momentum_len = input.int(10, title="Fibo Momentum Len", group="Fibo Combined Signal")
+Fibo_roc_len = input.int(10, title="Fibo ROC Len", group="Fibo Combined Signal")
+
+// EMA Ayarı
+Fibo_ema_len_EMA50 = input.int(50, title="Fibo EMA50 Len", group="Fibo Combined Signal")
+
+// PSAR Ayarları
+Fibo_psar_start = input.float(0.02, "Fibo PSAR Start", group="Fibo Combined Signal")
+Fibo_psar_inc = input.float(0.02, "Fibo PSAR Increment", group="Fibo Combined Signal")
+Fibo_psar_max = input.float(0.2, "Fibo PSAR Max", group="Fibo Combined Signal")
+
+// Sinyal Gücü Eşiği (Etiketlerin ne zaman görüneceğini belirler)
+Fibo_signal_threshold = input.int(4, title="Fibo Signal Threshold (1-5)", minval=1, maxval=5, group="Fibo Combined Signal")
+
+// --- 2. İNDİKATÖR HESAPLAMALARI ---
+// MACD Hesaplaması
+[Fibo_macdLine, Fibo_signalLine, _] = ta.macd(close, Fibo_fast_length_MACD, Fibo_slow_length_MACD, Fibo_signal_length_MACD) // Prefixed
+
+// Momentum Hesaplaması
+Fibo_mom = ta.mom(close, Fibo_momentum_len) // Prefixed
+
+// ROC Hesaplaması
+Fibo_roc = ta.roc(close, Fibo_roc_len) // Prefixed
+
+// EMA Hesaplaması
+Fibo_ema50 = ta.ema(close, Fibo_ema_len_EMA50) // Prefixed
+
+// Parabolik SAR Hesaplaması
+Fibo_psar = ta.sar(Fibo_psar_start, Fibo_psar_inc, Fibo_psar_max) // Prefixed
+
+// --- 3. SİNYAL KOŞULLARINI TANIMLAMA ---
+// AL Koşulları (Doğru ise 1, yanlış ise 0 döner)
+Fibo_bull_macd = Fibo_macdLine > Fibo_signalLine // Prefixed
+Fibo_bull_mom = Fibo_mom > 0 // Prefixed
+Fibo_bull_roc = Fibo_roc > 0 // Prefixed
+Fibo_bull_ema = close > Fibo_ema50 // Prefixed
+Fibo_bull_psar = Fibo_psar < low // Prefixed
+
+// SAT Koşulları (Doğru ise 1, yanlış ise 0 döner)
+Fibo_bear_macd = Fibo_macdLine < Fibo_signalLine // Prefixed
+Fibo_bear_mom = Fibo_mom < 0 // Prefixed
+Fibo_bear_roc = Fibo_roc < 0 // Prefixed
+Fibo_bear_ema = close < Fibo_ema50 // Prefixed
+Fibo_bear_psar = Fibo_psar > high // Prefixed
+
+// --- 4. SİNYAL GÜCÜNÜ HESAPLAMA (PUANLAMA) ---
+Fibo_alGucu = 0 // Prefixed
+Fibo_alGucu += Fibo_bull_macd ? 1 : 0
+Fibo_alGucu += Fibo_bull_mom ? 1 : 0
+Fibo_alGucu += Fibo_bull_roc ? 1 : 0
+Fibo_alGucu += Fibo_bull_ema ? 1 : 0
+Fibo_alGucu += Fibo_bull_psar ? 1 : 0
+
+Fibo_satGucu = 0 // Prefixed
+Fibo_satGucu += Fibo_bear_macd ? 1 : 0
+Fibo_satGucu += Fibo_bear_mom ? 1 : 0
+Fibo_satGucu += Fibo_bear_roc ? 1 : 0
+Fibo_satGucu += Fibo_bear_ema ? 1 : 0
+Fibo_satGucu += Fibo_bear_psar ? 1 : 0
+
+// --- 5. GÖRSELLEŞTİRME (GRAFİK ÜZERİNDE GÖSTERİM) ---
+// Sinyal etiketinin metnini ve rengini belirleme
+var color Fibo_label_color = color.gray // Prefixed
+var string Fibo_label_text = "NÖTR" // Prefixed
+
+if (Fibo_alGucu >= Fibo_signal_threshold and Fibo_satGucu < 2)
+    Fibo_label_text := "GÜÇLÜ AL"
+    Fibo_label_color := color.new(color.green, 20)
+else if (Fibo_satGucu >= Fibo_signal_threshold and Fibo_alGucu < 2)
+    Fibo_label_text := "GÜÇLÜ SAT"
+    Fibo_label_color := color.new(color.red, 20)
+else if (Fibo_alGucu > Fibo_satGucu and Fibo_alGucu >= 3)
+    Fibo_label_text := "AL"
+    Fibo_label_color := color.new(color.lime, 40)
+else if (Fibo_satGucu > Fibo_alGucu and Fibo_satGucu >= 3)
+    Fibo_label_text := "SAT"
+    Fibo_label_color := color.new(color.maroon, 40)
+else
+    Fibo_label_text := "NÖTR"
+    Fibo_label_color := color.new(color.gray, 20)
+
+// Ekrana son mumda bir etiket çizdirme
+var label Fibo_myLabel = na // Prefixed
+label.delete(Fibo_myLabel)
+Fibo_myLabel := label.new(
+     bar_index,
+     na,
+     text=Fibo_label_text + "\nAl Sinyali: " + str.tostring(Fibo_alGucu) + "\nSat Sinyali: " + str.tostring(Fibo_satGucu),
+     yloc=yloc.abovebar,
+     color=Fibo_label_color,
+     style=label.style_label_down,
+     textcolor=color.white,
+     size=size.normal
+     )
+
+// Arka plan rengini sinyal gücüne göre hafifçe renklendirme (isteğe bağlı)
+bgcolor(Fibo_alGucu > Fibo_satGucu and Fibo_alGucu >= 3 ? color.new(color.green, 90) : na)
+bgcolor(Fibo_satGucu > Fibo_alGucu and Fibo_satGucu >= 3 ? color.new(color.red, 90) : na)
+
+// EMA50 çizgisini grafiğe ekleme
+plot(Fibo_ema50, "Fibo EMA 50", color=color.orange)
+
+// === 2B. SKRİPT: [ELF TRADE ACADEMY] TREND & MULTI ATR ===
+// indicator('[ELF TRADE ACADEMY] TREND & MULTI ATR', overlay = true) // This line is commented out
+
+ELF_ShowDC = input.bool(false, title = "ELF DC Kanalları Göster", tooltip="Grafik üzerinde DC Kanallarını gösterir.", group="ELF Settings")
+ELF_lengthdc = input.int(20, minval = 1, title = "ELF DC Uzunluk", group="ELF Settings")
+ELF_offsetdc = input.int(0,title = "ELF DC Offset", group="ELF Settings")
+
+// SMA Parametreleri
+ELF_fast_sma_period = input.int(13, title = 'ELF Fast SMA Period', minval = 1, group="ELF SMA Settings")
+ELF_slow_sma_period = input.int(50, title = 'ELF Slow SMA Period', minval = 1, group="ELF SMA Settings")
+ELF_first_sma_period = input.int(5, title = 'ELF 1. SMA Period', minval = 1, group="ELF SMA Settings")
+ELF_second_sma_period = input.int(8, title = 'ELF 2. SMA Period', minval = 1, group="ELF SMA Settings")
+ELF_third_sma_period = input.int(11, title = 'ELF 3. SMA Period', minval = 1, group="ELF SMA Settings")
+
+// SMA Çizgilerini Aktif/Pasif Yapma Ayarları
+ELF_show_first_sma = input.bool(false, title = "ELF 1. SMA Göster", tooltip="Birinci SMA çizgisini gösterir.", group="ELF SMA Settings")
+ELF_show_second_sma = input.bool(false, title = "ELF 2. SMA Göster", tooltip="İkinci SMA çizgisini gösterir.", group="ELF SMA Settings")
+ELF_show_third_sma = input.bool(false, title = "ELF 3. SMA Göster", tooltip="Üçüncü SMA çizgisini gösterir.", group="ELF SMA Settings")
+
+// Renk Ayarları
+ELF_fast_sma_color = input.color(color.blue, title = "ELF Fast SMA Rengi", group="ELF Color Settings")
+ELF_slow_sma_color = input.color(color.red, title = "ELF Slow SMA Rengi", group="ELF Color Settings")
+ELF_first_sma_color = input.color(#fffefe, title = "ELF 1. SMA Rengi", group="ELF Color Settings")
+ELF_second_sma_color = input.color(color.red, title = "ELF 2. SMA Rengi", group="ELF Color Settings")
+ELF_third_sma_color = input.color(color.rgb(15, 99, 255), title = "ELF 3. SMA Rengi", group="ELF Color Settings")
+ELF_table_header_bgcolor = input.color(color.rgb(145, 145, 145), title = "ELF Tablo Başlık BG Rengi", group="ELF Color Settings")
+ELF_table_header_textcolor = input.color(#ffffff, title = "ELF Tablo Başlık Yazı Rengi", group="ELF Color Settings")
+ELF_up_trend_color = input.color(color.green, title = "ELF Yükseliş Trend Rengi", group="ELF Color Settings")
+ELF_down_trend_color = input.color(color.red, title = "ELF Düşüş Trend Rengi", group="ELF Color Settings")
+ELF_table_border_color = input.color(#ffee00, title = "ELF Tablo Kenar Rengi", group="ELF Color Settings")
+ELF_timeframe_text_color = input.color(#fbff00, title = "ELF Zaman Dilimi Yazı Rengi", group="ELF Color Settings")
+ELF_text_color = input.color(#ffffff, title = "ELF Yazı Rengi (Genel)", group="ELF Color Settings")
+
+// SMA Hesaplamaları
+ELF_fast_sma = ta.sma(close, ELF_fast_sma_period)
+ELF_slow_sma = ta.sma(close, ELF_slow_sma_period)
+ELF_first_sma = ta.sma(close, ELF_first_sma_period)
+ELF_second_sma = ta.sma(close, ELF_second_sma_period)
+ELF_third_sma = ta.sma(close, ELF_third_sma_period)
+
+ELF_trend_current = na(ELF_fast_sma) or na(ELF_slow_sma) ? na : ELF_fast_sma > ELF_slow_sma ? 'Up' : 'Down'
+
+// Zaman Dilimi ve Tablo Etiketi Ayarları
+var string[] ELF_timeframes = array.new_string(7)
+var string[] ELF_timeframe_labels = array.new_string(7)
+array.set(ELF_timeframes, 0, input.string("1W", title="ELF 1. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 0, input.string("1 Hafta", title="ELF 1. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 1, input.string("1D", title="ELF 2. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 1, input.string("1 Gün", title="ELF 2. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 2, input.string("240", title="ELF 3. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 2, input.string("4 Saat", title="ELF 3. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 3, input.string("60", title="ELF 4. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 3, input.string("1 Saat", title="ELF 4. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 4, input.string("15", title="ELF 5. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 4, input.string("15 Dakika", title="ELF 5. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 5, input.string("", title="ELF 6. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 5, input.string("", title="ELF 6. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+array.set(ELF_timeframes, 6, input.string("", title="ELF 7. Zaman Dilimi", tooltip="Örnek: 1W, 1D, 240, 60, 15", group="ELF Timeframes"))
+array.set(ELF_timeframe_labels, 6, input.string("", title="ELF 7. Zaman Dilimi Etiketi", tooltip="Tabloda görünecek etiket", group="ELF Timeframes"))
+
+// Zaman Dilimlerini Aktif/Pasif Yapma Ayarları
+var bool[] ELF_enabled = array.new_bool(7)
+array.set(ELF_enabled, 0, input.bool(true, title="ELF 1. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 1, input.bool(true, title="ELF 2. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 2, input.bool(true, title="ELF 3. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 3, input.bool(true, title="ELF 4. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 4, input.bool(true, title="ELF 5. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 5, input.bool(false, title="ELF 6. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+array.set(ELF_enabled, 6, input.bool(false, title="ELF 7. Zaman Dilimini Etkinleştir", group="ELF Timeframes Enable"))
+
+// Farklı zaman dilimlerinden SMA trendlerini hesaplama fonksiyonu
+ELF_f_get_trend(res) =>
+    ELF_fast_sma_tf = request.security(syminfo.tickerid, res, ta.sma(close, ELF_fast_sma_period))
+    ELF_slow_sma_tf = request.security(syminfo.tickerid, res, ta.sma(close, ELF_slow_sma_period))
+    na(ELF_fast_sma_tf) or na(ELF_slow_sma_tf) ? na : ELF_fast_sma_tf > ELF_slow_sma_tf ? 'Up' : 'Down'
+
+// SMA Trendlerini Hesaplama
+var string[] ELF_trend_values = array.new_string(7)
+
+for i = 0 to 6
+    if array.get(ELF_enabled, i) and array.get(ELF_timeframes, i) != ""
+        array.set(ELF_trend_values, i, ELF_f_get_trend(array.get(ELF_timeframes, i)))
+
+// Grafikte SMA çizgilerini gösterme
+plot(ELF_fast_sma, color = ELF_fast_sma_color, linewidth = 2, title = 'ELF Fast SMA')
+plot(ELF_slow_sma, color = ELF_slow_sma_color, linewidth = 2, title = 'ELF Slow SMA')
+plot(ELF_show_first_sma ? ELF_first_sma : na, color = ELF_first_sma_color, linewidth = 1, title = 'ELF 1. SMA')
+plot(ELF_show_second_sma ? ELF_second_sma : na, color = ELF_second_sma_color, linewidth = 1, title = 'ELF 2. SMA')
+plot(ELF_show_third_sma ? ELF_third_sma : na, color = ELF_third_sma_color, linewidth = 1, title = 'ELF 3. SMA')
+
+// ATR Hesaplama fonksiyonu
+ELF_f_get_atr(res) =>
+    request.security(syminfo.tickerid, res, ta.atr(14))
+
+// Farklı zaman dilimlerinden ATR değerleri
+var float[] ELF_atr_values = array.new_float(7)
+
+for i = 0 to 6
+    if array.get(ELF_enabled, i) and array.get(ELF_timeframes, i) != ""
+        array.set(ELF_atr_values, i, ELF_f_get_atr(array.get(ELF_timeframes, i)))
+
+// SMA Trend Tablosu
+var table ELF_trend_table = table.new(position.bottom_right, 2, 8, border_color = ELF_table_border_color)
+if bar_index == 0
+    table.cell(ELF_trend_table, 0, 0, 'Zaman Dilimi', bgcolor = ELF_table_header_bgcolor, text_color = ELF_table_header_textcolor) // Header text changed for clarity
+    table.cell(ELF_trend_table, 1, 0, 'Trend', bgcolor = ELF_table_header_bgcolor, text_color = ELF_table_header_textcolor)
+
+if barstate.islast
+    ELF_row = 1 // Prefixed
+    for i = 0 to 6
+        if array.get(ELF_enabled, i) and array.get(ELF_timeframes, i) != ""
+            table.cell(ELF_trend_table, 0, ELF_row, array.get(ELF_timeframe_labels, i), text_color = ELF_timeframe_text_color)
+            table.cell(ELF_trend_table, 1, ELF_row, array.get(ELF_trend_values, i), bgcolor = array.get(ELF_trend_values, i) == 'Up' ? ELF_up_trend_color : ELF_down_trend_color, text_color = ELF_text_color)
+            ELF_row += 1
+
+// ATR Tablosu
+var table ELF_atr_table = table.new(position.top_left, 2, 8, border_color = color.blue) // Position changed
+if bar_index == 0
+    table.cell(ELF_atr_table, 0, 0, 'Zaman Dilimi', bgcolor = color.blue, text_color = ELF_table_header_textcolor) // Header text changed
+    table.cell(ELF_atr_table, 1, 0, 'ATR', bgcolor = color.blue, text_color = ELF_table_header_textcolor)
+
+if barstate.islast
+    ELF_row_atr = 1 // Prefixed
+    for i = 0 to 6
+        if array.get(ELF_enabled, i) and array.get(ELF_timeframes, i) != ""
+            table.cell(ELF_atr_table, 0, ELF_row_atr, array.get(ELF_timeframe_labels, i), text_color = ELF_timeframe_text_color)
+            table.cell(ELF_atr_table, 1, ELF_row_atr, str.tostring(array.get(ELF_atr_values, i)), text_color = ELF_text_color)
+            ELF_row_atr += 1
+
+    ////////////////////////////////// DC KANALLARI
+ELF_lowerdc =  ta.lowest(ELF_lengthdc)
+ELF_upperdc =  ta.highest(ELF_lengthdc)
+ELF_basisdc =  math.avg(ELF_upperdc, ELF_lowerdc)
+plot(ELF_ShowDC ? ELF_basisdc : na, "ELF DC Basis", color = #FF6D00, offset = ELF_offsetdc) // Added ELF_ShowDC condition
+ELF_u = plot(ELF_ShowDC ? ELF_upperdc : na, "ELF DC Upper", color = #2962FF, offset = ELF_offsetdc)
+ELF_l = plot(ELF_ShowDC ? ELF_lowerdc : na, "ELF DC Lower", color = #2962FF, offset = ELF_offsetdc)
+fill(ELF_u , ELF_l, color = ELF_ShowDC ? color.rgb(33, 150, 243, 95) : na, title = "ELF DC Background") // Added ELF_ShowDC condition to fill
