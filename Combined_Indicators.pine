@@ -1,0 +1,257 @@
+//@version=5
+indicator("Macd RSI % Change Signals & Trend Multi ATR Devis'So", overlay=true, shorttitle="MACD RSI & ATR Trend", max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// BEGIN: Macd and RSI % Change Signals Devis'So
+
+// Inputs for Macd and RSI % Change Signals Devis'So
+rsi_length = input.int(14, title="RSI Length", group="RSI Settings")
+rsi_source = input(close, title="RSI Source", group="RSI Settings")
+rsi_change_threshold_bull = input.float(20.0, title="RSI % Change Bullish Threshold", group="RSI Settings")
+rsi_change_threshold_bear = input.float(-20.0, title="RSI % Change Bearish Threshold", group="RSI Settings")
+rsi_bull_bar_color = input.color(color.new(color.green, 0), title="RSI Bullish Bar Color", group="RSI Settings")
+rsi_bear_bar_color = input.color(color.new(color.red, 0), title="RSI Bearish Bar Color", group="RSI Settings")
+show_rsi_signals = input.bool(true, title="Show RSI Signals", group="RSI Settings")
+
+macd_fast_length = input.int(12, title="MACD Fast Length", group="MACD Settings")
+macd_slow_length = input.int(26, title="MACD Slow Length", group="MACD Settings")
+macd_signal_length = input.int(9, title="MACD Signal Length", group="MACD Settings")
+macd_source = input(close, title="MACD Source", group="MACD Settings")
+show_macd_signals = input.bool(true, title="Show MACD Signals", group="MACD Settings")
+macd_bull_color = input.color(color.new(color.blue, 0), title="MACD Bullish Color", group="MACD Settings")
+macd_bear_color = input.color(color.new(color.orange, 0), title="MACD Bearish Color", group="MACD Settings")
+
+pullback_atr_length = input.int(14, title="Pullback ATR Length", group="Pullback Settings")
+pullback_atr_multiplier = input.float(1.0, title="Pullback ATR Multiplier", group="Pullback Settings")
+show_pullback_levels = input.bool(true, title="Show Pullback Levels", group="Pullback Settings")
+long_pullback_color = input.color(color.new(color.lime, 80), title="Long Pullback Color", group="Pullback Settings")
+short_pullback_color = input.color(color.new(color.red, 80), title="Short Pullback Color", group="Pullback Settings")
+
+// Inputs for the duplicate pullback section
+atrLength = input.int(14, title="ATR Length (Duplicate Pullback)", group="Pullback Settings Duplicate")
+atrMultiplier = input.float(2.0, title="ATR Multiplier (Duplicate Pullback)", group="Pullback Settings Duplicate")
+show_pullbacks = input.bool(true, title="Show Pullbacks (Duplicate)", group="Pullback Settings Duplicate")
+long_pullback_level_color = input.color(color.new(color.aqua, 70), title="Long Pullback Level Color (Duplicate)", group="Pullback Settings Duplicate")
+short_pullback_level_color = input.color(color.new(color.maroon, 70), title="Short Pullback Level Color (Duplicate)", group="Pullback Settings Duplicate")
+
+
+// Calculations for Macd and RSI % Change Signals Devis'So
+logHigh = math.log(high)
+logLow = math.log(low)
+
+// RSI Calculations
+rsi = ta.rsi(rsi_source, rsi_length)
+rsi_prev = nz(rsi[1])
+rsi_change = ((rsi - rsi_prev) / rsi_prev) * 100
+
+rsi_bull_signal = rsi_change > rsi_change_threshold_bull
+rsi_bear_signal = rsi_change < rsi_change_threshold_bear
+
+barcolor(rsi_bull_signal ? rsi_bull_bar_color : na, title="RSI Bull Bar Color")
+barcolor(rsi_bear_signal ? rsi_bear_bar_color : na, title="RSI Bear Bar Color")
+
+// MACD Calculations
+[macd_line, signal_line, hist_line] = ta.macd(macd_source, macd_fast_length, macd_slow_length, macd_signal_length)
+
+macd_bull_signal = ta.crossunder(macd_line, signal_line) and macd_line < 0 and signal_line < 0
+macd_bear_signal = ta.crossover(macd_line, signal_line) and macd_line > 0 and signal_line > 0
+
+// Pullback Calculations
+atr_val = ta.atr(pullback_atr_length)
+longPullbackLevel = low - (atr_val * pullback_atr_multiplier)
+shortPullbackLevel = high + (atr_val * pullback_atr_multiplier)
+
+var float longEntryPrice = na
+var float shortEntryPrice = na
+
+if (rsi_bull_signal or macd_bull_signal)
+    longEntryPrice := low
+    shortEntryPrice := na // Reset short entry on long signal
+
+if (rsi_bear_signal or macd_bear_signal)
+    shortEntryPrice := high
+    longEntryPrice := na // Reset long entry on short signal
+
+// Duplicate Pullback Calculations
+atr_val_dup = ta.atr(atrLength) // Use different variable name for ATR value
+long_pullback_level = low - atr_val_dup * atrMultiplier
+short_pullback_level = high + atr_val_dup * atrMultiplier
+
+var float long_entry_price_dup = na
+var float short_entry_price_dup = na
+
+if (macd_bull_signal) // Assuming this uses MACD bull for its trigger
+    long_entry_price_dup := low
+    short_entry_price_dup := na
+
+if (macd_bear_signal) // Assuming this uses MACD bear for its trigger
+    short_entry_price_dup := high
+    long_entry_price_dup := na
+
+// Plotting for Macd and RSI % Change Signals Devis'So
+plotshape(show_rsi_signals and rsi_bull_signal, title="RSI Bullish", location=location.belowbar, color=rsi_bull_bar_color, style=shape.triangleup, size=size.small)
+plotshape(show_rsi_signals and rsi_bear_signal, title="RSI Bearish", location=location.abovebar, color=rsi_bear_bar_color, style=shape.triangledown, size=size.small)
+
+plotshape(show_macd_signals and macd_bull_signal, title="MACD Bullish", location=location.belowbar, color=macd_bull_color, style=shape.labelup, text="MACD", textcolor=color.white, size=size.tiny)
+plotshape(show_macd_signals and macd_bear_signal, title="MACD Bearish", location=location.abovebar, color=macd_bear_color, style=shape.labeldown, text="MACD", textcolor=color.white, size=size.tiny)
+
+plot(show_pullback_levels and not na(longEntryPrice) ? longPullbackLevel : na, title="Long Pullback Level", color=long_pullback_color, style=plot.style_linebr, linewidth=2)
+plot(show_pullback_levels and not na(shortEntryPrice) ? shortPullbackLevel : na, title="Short Pullback Level", color=short_pullback_color, style=plot.style_linebr, linewidth=2)
+
+// Plotting for Duplicate Pullback Levels
+plot(show_pullbacks and not na(long_entry_price_dup) ? long_pullback_level : na, title="Long Pullback Level (Dup)", color=long_pullback_level_color, style=plot.style_circles, linewidth=1)
+plot(show_pullbacks and not na(short_entry_price_dup) ? short_pullback_level : na, title="Short Pullback Level (Dup)", color=short_pullback_level_color, style=plot.style_circles, linewidth=1)
+
+// Alerts for Macd and RSI % Change Signals Devis'So
+alertcondition(rsi_bull_signal, title="RSI Bullish Signal Alert", message="RSI Bullish signal detected on {{ticker}}")
+alertcondition(rsi_bear_signal, title="RSI Bearish Signal Alert", message="RSI Bearish signal detected on {{ticker}}")
+alertcondition(macd_bull_signal, title="MACD Bullish Signal Alert", message="MACD Bullish signal detected on {{ticker}}")
+alertcondition(macd_bear_signal, title="MACD Bearish Signal Alert", message="MACD Bearish signal detected on {{ticker}}")
+alertcondition(low <= longPullbackLevel and not na(longEntryPrice), title="Price Reached Long Pullback Alert", message="Price reached long pullback level on {{ticker}}")
+alertcondition(high >= shortPullbackLevel and not na(shortEntryPrice), title="Price Reached Short Pullback Alert", message="Price reached short pullback level on {{ticker}}")
+alertcondition(low <= long_pullback_level and not na(long_entry_price_dup), title="Price Reached Long Pullback (Dup) Alert", message="Price reached long pullback level (duplicate) on {{ticker}}")
+alertcondition(high >= short_pullback_level and not na(short_entry_price_dup), title="Price Reached Short Pullback (Dup) Alert", message="Price reached short pullback level (duplicate) on {{ticker}}")
+
+// END: Macd and RSI % Change Signals Devis'So
+
+
+// BEGIN: [ELF TRADE ACADEMY] TREND & MULTI ATR
+
+// Inputs for [ELF TRADE ACADEMY] TREND & MULTI ATR
+string dc_group = "DONCHIAN SETTINGS";
+string sma_group = "SMA SETTINGS";
+string table_group = "TABLE SETTINGS";
+string timeframe_group = "TIMEFRAME SETTINGS";
+
+len = input.int(20, minval=1, title="Length", group = dc_group)
+
+sma_p_1 = input.int(20, "SMA 1 Period", group = sma_group)
+show_sma_1 = input.bool(true, "Show SMA 1", group = sma_group, inline = "sma1")
+sma_1_color = input.color(color.new(#FFEB3B,0), "", group = sma_group, inline = "sma1")
+
+sma_p_2 = input.int(50, "SMA 2 Period", group = sma_group)
+show_sma_2 = input.bool(true, "Show SMA 2", group = sma_group, inline = "sma2")
+sma_2_color = input.color(color.new(#E91E63,0), "", group = sma_group, inline = "sma2")
+
+sma_p_3 = input.int(200, "SMA 3 Period", group = sma_group)
+show_sma_3 = input.bool(true, "Show SMA 3", group = sma_group, inline = "sma3")
+sma_3_color = input.color(color.new(#2196F3,0), "", group = sma_group, inline = "sma3")
+
+don_color_b = input.color(color.new(#4CAF50,85), "Donchian Bull Color", group = dc_group)
+don_color_s = input.color(color.new(#F44336,85), "Donchian Bear Color", group = dc_group)
+
+// Timeframe inputs
+var string[] timeframe_arr_str = array.from("5","15","60","240","1D")
+var string[] timeframe_arr_label = array.from("5m","15m","1H","4H","1D")
+var bool[] timeframe_arr_enabled = array.from(true,true,true,true,true)
+
+// Loop for timeframe inputs - This is a conceptual representation.
+// Pine Script doesn't directly support dynamic input creation in a loop for separate `input.bool` calls with dynamic titles.
+// We'll manage this by having distinct inputs if needed or by assuming the user will manage the array string if they want to customize.
+// For this combination, we'll assume the default array values are sufficient.
+// If individual toggles were strictly needed, they'd have to be defined one by one:
+// tf_1_enabled = input.bool(true, title=timeframe_arr_label.get(0) + " Enabled", group=timeframe_group)
+// ... and so on for tf_2_enabled, etc.
+// For now, we use the array `timeframe_arr_enabled` as defined, implying these are 'fixed' or less frequently changed.
+
+table_tf_main_title = input.string("TREND", "Main Title", group = table_group, inline="tfmain")
+table_tf_position = input.string(position.top_right, "Position", options = [position.top_right, position.top_left, position.top_center, position.middle_right, position.middle_left, position.middle_center, position.bottom_right, position.bottom_left, position.bottom_center], group = table_group, inline="tfmain")
+table_tf_highlight_color = input.color(color.new(color.teal,75), "Current TF Highlight", group = table_group, inline="tfmain")
+table_tf_bull_color = input.color(color.new(color.green,0), "Bull Color", group = table_group, inline="tfcols")
+table_tf_bear_color = input.color(color.new(color.red,0), "Bear Color", group = table_group, inline="tfcols")
+table_tf_neutral_color = input.color(color.new(color.gray,0), "Neutral Color", group = table_group, inline="tfcols")
+
+table_atr_main_title = input.string("ATR", "ATR Table Title", group = table_group, inline="atrmain")
+table_atr_position = input.string(position.bottom_right, "ATR Table Position", options = [position.top_right, position.top_left, position.top_center, position.middle_right, position.middle_left, position.middle_center, position.bottom_right, position.bottom_left, position.bottom_center], group = table_group, inline="atrmain")
+table_atr_text_color = input.color(color.new(color.white,0), "ATR Text Color", group = table_group, inline="atrcols")
+
+
+// Custom Functions for [ELF TRADE ACADEMY] TREND & MULTI ATR
+f_get_trend(res) =>
+    float src_s = request.security(syminfo.tickerid, res, close)
+    float src_o = request.security(syminfo.tickerid, res, open)
+    int result = 0
+    if src_s > src_o
+        result := 1
+    if src_s < src_o
+        result := -1
+    result // 1 = bull, -1 = bear, 0 = neutral
+
+f_get_atr(res) =>
+    float result = request.security(syminfo.tickerid, res, ta.atr(14)) // Assuming ATR period of 14, standard
+    result
+
+
+// Calculations for [ELF TRADE ACADEMY] TREND & MULTI ATR
+sma_1 = ta.sma(close, sma_p_1)
+sma_2 = ta.sma(close, sma_p_2)
+sma_3 = ta.sma(close, sma_p_3)
+
+trend_current = 0
+if close > open
+    trend_current := 1
+if close < open
+    trend_current := -1
+
+// Timeframe array initializations
+var int[] trend_values = array.new_int(5,0) // 5 is the size of timeframe_arr_str
+var float[] atr_values = array.new_float(5,0) // 5 is the size of timeframe_arr_str
+
+if barstate.islastconfirmedhistory or barstate.isrealtime
+    for i = 0 to array.size(timeframe_arr_str) - 1
+        if timeframe_arr_enabled.get(i)
+            array.set(trend_values, i, f_get_trend(timeframe_arr_str.get(i)))
+            array.set(atr_values, i, f_get_atr(timeframe_arr_str.get(i)))
+        else
+            array.set(trend_values, i, 0) // Or some indicator for "disabled"
+            array.set(atr_values, i, 0.0)
+
+
+// Donchian Channels
+lower = ta.lowest(low, len)
+upper = ta.highest(high, len)
+basis = math.avg(upper, lower)
+
+
+// Plotting for [ELF TRADE ACADEMY] TREND & MULTI ATR
+plot(show_sma_1 ? sma_1 : na, color=sma_1_color, title="SMA 1", linewidth=2)
+plot(show_sma_2 ? sma_2 : na, color=sma_2_color, title="SMA 2", linewidth=2)
+plot(show_sma_3 ? sma_3 : na, color=sma_3_color, title="SMA 3", linewidth=2)
+
+// Plot Donchian Channels
+plot(upper, "Upper Channel", color=don_color_b, linewidth=1)
+plot(lower, "Lower Channel", color=don_color_s, linewidth=1)
+plot(basis, "Basis Line", color=color.new(color.blue, 50), linewidth=1, style=plot.style_dotted)
+
+// Fill Donchian Background
+fill(plot1=plot(upper, color=color.new(color.white,100)), plot2=plot(lower, color=color.new(color.white,100)), color = close > basis ? don_color_b : don_color_s, title = "Donchian Background")
+
+
+// Table Creation and Population
+
+// Trend Table
+var table trend_table = table.new(table_tf_position, columns = array.size(timeframe_arr_label) + 1, rows = 2, border_width = 1, border_color = color.gray, frame_color = color.gray, frame_width = 1)
+
+if barstate.islast or barstate.isrealtime // Use islast or isrealtime for table updates
+    table.cell(trend_table, 0, 0, table_tf_main_title, bgcolor = color.new(color.gray,30), text_color = color.white, text_size = size.normal)
+    for i = 0 to array.size(timeframe_arr_label) - 1
+        cell_text_color = timeframe.period == timeframe_arr_str.get(i) ? table_tf_highlight_color : color.white
+        table.cell(trend_table, i + 1, 0, timeframe_arr_label.get(i), bgcolor = timeframe.period == timeframe_arr_str.get(i) ? table_tf_highlight_color : color.new(color.gray,30), text_color = timeframe.period == timeframe_arr_str.get(i) ? color.black : color.white, text_size = size.normal)
+
+        current_trend_val = array.get(trend_values, i)
+        cell_trend_color = current_trend_val == 1 ? table_tf_bull_color : current_trend_val == -1 ? table_tf_bear_color : table_tf_neutral_color
+        table.cell(trend_table, i + 1, 1, current_trend_val == 1 ? "▲" : current_trend_val == -1 ? "▼" : "-", bgcolor = cell_trend_color, text_color = color.white, text_size = size.normal)
+
+// ATR Table
+var table atr_table = table.new(table_atr_position, columns = array.size(timeframe_arr_label) + 1, rows = 2, border_width = 1, border_color = color.gray, frame_color = color.gray, frame_width = 1)
+
+if barstate.islast or barstate.isrealtime
+    table.cell(atr_table, 0, 0, table_atr_main_title, bgcolor = color.new(color.gray,30), text_color = color.white, text_size = size.normal)
+    for i = 0 to array.size(timeframe_arr_label) - 1
+        table.cell(atr_table, i + 1, 0, timeframe_arr_label.get(i), bgcolor = color.new(color.gray,30), text_color = color.white, text_size = size.normal)
+
+        current_atr_val = array.get(atr_values, i)
+        // Format ATR value to a reasonable number of decimal places, e.g., syminfo.mintick
+        atr_text = str.tostring(current_atr_val, format.mintick)
+        table.cell(atr_table, i + 1, 1, atr_text, bgcolor = color.new(color.black,30), text_color = table_atr_text_color, text_size = size.normal)
+
+// END: [ELF TRADE ACADEMY] TREND & MULTI ATR

@@ -1,0 +1,314 @@
+//@version=5
+indicator("Macd RSI % Change Signals Devis'So & [ELF TRADE ACADEMY] TREND & MULTI ATR", overlay=true, shorttitle="MACD RSI & ATR Original", max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// Script 1 Content (Lines 4-97 from user's text) with input grouping
+logHigh = math.log(high)
+logLow = math.log(low)
+logClose = math.log(close)
+
+rsihigh = ta.rsi(logHigh, 14)
+rsilow = ta.rsi(logLow, 14)
+rsiclose = ta.rsi(logClose, 14)
+// RSI değişimi
+rsiChangehigh = ta.change(rsihigh)
+rsiChangelow = ta.change(rsilow)
+rsiChangeclose = ta.change(rsiclose)
+
+long_signal1 = ta.crossover(rsiChangeclose, 20)
+long_signal2 = ta.crossover(rsiChangeclose,10)
+long_signal3 = ta.crossover(rsilow, 20)
+
+short_signal1 = ta.crossunder(rsilow, -20)
+short_signal2= ta.crossunder(rsiChangeclose, -20)
+short_signal3= ta.crossunder(rsiChangeclose,-10)
+
+// Getting inputs
+fast_length = input(title = "Fast Length", defval = 12, group = "MACD & RSI Signals - Settings")
+slow_length = input(title = "Slow Length", defval = 26, group = "MACD & RSI Signals - Settings")
+src = input(title = "Source", defval = close, group = "MACD & RSI Signals - Settings")
+signal_length = input.int(title = "Signal Smoothing",  minval = 1, maxval = 50, defval = 9, display = display.data_window, group = "MACD & RSI Signals - Settings")
+sma_source = input.string(title = "Oscillator MA Type",  defval = "EMA", options = ["SMA", "EMA"], display = display.data_window, group = "MACD & RSI Signals - Settings")
+sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], display = display.data_window, group = "MACD & RSI Signals - Settings")
+// Calculating
+fast_ma = sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length)
+macd = ta.change(ta.rsi((fast_ma - slow_ma),100))
+signal =ta.change( ta.rsi(sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length),100))
+top=(macd+signal)/2
+
+long_signal11 = ta.crossover(macd,2) or ta.crossover(signal,2) or ta.crossover(top,2)
+long_signal21 = ta.crossover(macd, 3) or ta.crossover(signal, 3) or ta.crossover(top,3)
+long_signal31 = ta.crossover(macd, 4) or ta.crossover(signal, 4) or ta.crossover(top, 4)
+long_signal41 = ta.crossover(macd, 5) or ta.crossover(signal, 5) or ta.crossover(top, 5)
+short_signal11 = ta.crossunder(macd, -2) or  ta.crossunder(signal, -2) or  ta.crossunder(top, -2)
+short_signal21= ta.crossunder(macd, -3)  or ta.crossunder(signal, -3)  or ta.crossunder(top, -3)
+short_signal31= ta.crossunder(macd, -4)  or ta.crossunder(signal, -4)  or ta.crossunder(top, -4)
+short_signal41= ta.crossunder(macd, -5)  or ta.crossunder(signal, -5)  or ta.crossunder(signal, -5)
+// Plot long signals with titles
+plotshape(series=long_signal1, location=location.belowbar, color=color.green, style=shape.triangleup, text="C20L", size=size.normal, textcolor=color.green, title="C20 Long Signal")
+plotshape(series=long_signal2, location=location.belowbar, color=#44f321, style=shape.triangleup, text="C10L", size=size.tiny, textcolor=#44f321, title="C10 Long Signal")
+plotshape(series=long_signal3, location=location.belowbar, color=color.rgb(26, 231, 146), style=shape.triangleup, text="L20L", size=size.normal, textcolor=color.rgb(26, 231, 146), title="L20 Long Signal")
+
+// Plot short signals with titles
+plotshape(series=short_signal1, location=location.abovebar, color=#c50fda, style=shape.triangledown, text="L20S", size=size.small, textcolor=color.red, title="L20 Short Signal")
+plotshape(series=short_signal2, location=location.abovebar, color=color.rgb(251, 7, 19), style=shape.triangledown, text="C20S", size=size.normal, textcolor=#ee07db, title="C20 Short Signal")
+plotshape(series=short_signal3, location=location.abovebar, color=#fe16d7, style=shape.triangledown, text="C10S", size=size.tiny, textcolor=color.yellow, title="C10 Short Signal")
+
+// Plot more long signals with titles
+plotshape(series=long_signal11, location=location.belowbar, color=color.green, style=shape.triangleup, text="M2L", size=size.tiny, textcolor=color.green, title="M2 Long Signal")
+plotshape(series=long_signal21, location=location.belowbar, color=#44f321, style=shape.triangleup, text="M3L", size=size.small, textcolor=#44f321, title="M3 Long Signal")
+plotshape(series=long_signal31, location=location.belowbar, color=color.rgb(26, 231, 146), style=shape.triangleup, text="M4L", size=size.normal, textcolor=color.rgb(26, 231, 146), title="M4 Long Signal")
+plotshape(series=long_signal41, location=location.belowbar, color=color.lime, style=shape.triangleup, text="M5L", size=size.large, textcolor=color.lime, title="M5 Long Signal")
+
+// Plot more short signals with titles
+plotshape(series=short_signal11, location=location.abovebar, color=color.red, style=shape.triangledown, text="M2S", size=size.tiny, textcolor=color.red, title="M2 Short Signal")
+plotshape(series=short_signal21, location=location.abovebar, color=color.rgb(238, 7, 18), style=shape.triangledown, text="M3S", size=size.small, textcolor=color.rgb(238, 7, 18), title="M3 Short Signal")
+plotshape(series=short_signal31, location=location.abovebar, color=color.yellow, style=shape.triangledown, text="M4S", size=size.normal, textcolor=color.yellow, title="M4 Short Signal")
+plotshape(series=short_signal41, location=location.abovebar, color=#f06ab2, style=shape.triangledown, text="M5S", size=size.large, textcolor=#f06ab2, title="M5 Short Signal")
+
+// Pullback seviyelerini tutmak için değişkenler
+var float longPullbackLevel = na
+var float shortPullbackLevel = na
+
+// Long sinyalleri oluştuğunda low seviyesini pullback olarak kaydet
+if long_signal1
+    longPullbackLevel := low
+if long_signal2
+    longPullbackLevel := low
+if long_signal3
+    longPullbackLevel := low
+if long_signal11
+    longPullbackLevel := low
+if long_signal21
+    longPullbackLevel := low
+if long_signal31
+    longPullbackLevel := low
+if long_signal41
+    longPullbackLevel := low
+
+// Short sinyalleri oluştuğunda high seviyesini pullback olarak kaydet
+if short_signal1
+    shortPullbackLevel := high
+if short_signal2
+    shortPullbackLevel := high
+if short_signal3
+    shortPullbackLevel := high
+if short_signal11
+    shortPullbackLevel := high
+if short_signal21
+    shortPullbackLevel := high
+if short_signal31
+    shortPullbackLevel := high
+if short_signal41
+    shortPullbackLevel := high
+
+// Long ve short pullback seviyelerini grafikte çiz
+plot(longPullbackLevel, title="Long Pullback Seviyesi", color=color.rgb(11, 174, 238), linewidth=2)
+plot(shortPullbackLevel, title="Short Pullback Seviyesi", color=#f50dc3, linewidth=2)
+// Alert koşulları oluşturuluyor
+alertcondition(long_signal1, title="Long Alert", message="LongC20")
+alertcondition(short_signal1, title="Short Alert", message="ShortC20")
+
+// Pullback seviyelerini tanımlamak için değişkenler
+var float long_pullback_level = na
+var float short_pullback_level = na
+
+// Long sinyali olduğunda pullback seviyesini güncelle
+if (long_signal1)
+    long_pullback_level := low
+
+// Short sinyali olduğunda pullback seviyesini güncelle
+if (short_signal2)
+    short_pullback_level := high
+
+// Pullback seviyelerini grafikte çiz
+plot(long_pullback_level, color=color.green, linewidth=2, style=plot.style_stepline, title="Long Pullback Level")
+plot(short_pullback_level, color=color.red, linewidth=2, style=plot.style_stepline, title="Short Pullback Level")
+
+// Script 2 Content (Lines 100-232 from user's text) with input grouping
+ShowDC = input.bool(false, title = "Don Chian Kanalları", tooltip="Grafik üzerinde DC Kanallarını gösterir.", group = "Trend & Multi ATR - Donchian Channels")
+lengthdc = input.int(20, minval = 1, title = "DC Lenght", group = "Trend & Multi ATR - Donchian Channels")
+offsetdc = input.int(0,title = "DC Offset", group = "Trend & Multi ATR - Donchian Channels")
+
+// SMA Parametreleri
+fast_sma_period = input.int(13, title = 'Fast SMA Period', minval = 1, group = "Trend & Multi ATR - SMA Periods")
+slow_sma_period = input.int(50, title = 'Slow SMA Period', minval = 1, group = "Trend & Multi ATR - SMA Periods")
+first_sma_period = input.int(5, title = '1. SMA Period', minval = 1, group = "Trend & Multi ATR - SMA Periods")
+second_sma_period = input.int(8, title = '2. SMA Period', minval = 1, group = "Trend & Multi ATR - SMA Periods")
+third_sma_period = input.int(11, title = '3. SMA Period', minval = 1, group = "Trend & Multi ATR - SMA Periods")
+
+// SMA Çizgilerini Aktif/Pasif Yapma Ayarları
+show_first_sma = input.bool(false, title = "1. First SMA", tooltip="Birinci SMA çizgisini gösterir.", group = "Trend & Multi ATR - SMA Visibility")
+show_second_sma = input.bool(false, title = "2. Second SMA", tooltip="İkinci SMA çizgisini gösterir.", group = "Trend & Multi ATR - SMA Visibility")
+show_third_sma = input.bool(false, title = "3. Third SMA", tooltip="Üçüncü SMA çizgisini gösterir.", group = "Trend & Multi ATR - SMA Visibility")
+
+// Renk Ayarları
+fast_sma_color = input.color(color.blue, title = "Fast SMA Color", group = "Trend & Multi ATR - Color Settings")
+slow_sma_color = input.color(color.red, title = "Slow SMA Color", group = "Trend & Multi ATR - Color Settings")
+first_sma_color = input.color(#fffefe, title = "1. SMA Color", group = "Trend & Multi ATR - Color Settings")
+second_sma_color = input.color(color.red, title = "2. SMA Color", group = "Trend & Multi ATR - Color Settings")
+third_sma_color = input.color(color.rgb(15, 99, 255), title = "3. SMA Color", group = "Trend & Multi ATR - Color Settings")
+table_header_bgcolor = input.color(color.rgb(145, 145, 145), title = "Table Header Background Color", group = "Trend & Multi ATR - Color Settings")
+table_header_textcolor = input.color(#ffffff, title = "Table Header Text Color", group = "Trend & Multi ATR - Color Settings")
+up_trend_color = input.color(color.green, title = "Up Trend Color", group = "Trend & Multi ATR - Color Settings")
+down_trend_color = input.color(color.red, title = "Down Trend Color", group = "Trend & Multi ATR - Color Settings")
+table_border_color = input.color(#ffee00, title = "Table Border Color", group = "Trend & Multi ATR - Color Settings")
+timeframe_text_color = input.color(#fbff00, title = "Timeframe Text Color", group = "Trend & Multi ATR - Color Settings")
+text_color = input.color(#ffffff, title = "Text Color", group = "Trend & Multi ATR - Color Settings")
+
+// SMA Hesaplamaları
+fast_sma = ta.sma(close, fast_sma_period)
+slow_sma = ta.sma(close, slow_sma_period)
+first_sma = ta.sma(close, first_sma_period)
+second_sma = ta.sma(close, second_sma_period)
+third_sma = ta.sma(close, third_sma_period)
+
+trend_current = na(fast_sma) or na(slow_sma) ? na : fast_sma > slow_sma ? 'Up' : 'Down'
+
+// Zaman Dilimi ve Tablo Etiketi Ayarları
+var string[] timeframes = array.new_string(7, "")
+var string[] timeframe_labels = array.new_string(7, "")
+array.set(timeframes, 0, input.string("1W", title="1. Timeframe (Örn.: 1W)", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 0, input.string("1 Hafta", title="1. Timeframe Label (Örn.: 1 Hafta)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 1, input.string("1D", title="2. Timeframe (Örn.: 1D)", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 1, input.string("1 Gün", title="2. Timeframe Label (Örn.: 1 Gün)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 2, input.string("240", title="3. Timeframe (Örn.: 4H)", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 2, input.string("4 Saat", title="3. Timeframe Label (Örn.: 4 Saat)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 3, input.string("60", title="4. Timeframe (Örn.: 1H)", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 3, input.string("1 Saat", title="4. Timeframe Label (Örn.: 1 Saat)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 4, input.string("15", title="5. Timeframe (Örn.: 15)", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 4, input.string("15 Dakika", title="5. Timeframe Label (Örn.: 15 Dakika)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 5, input.string("", title="6. Timeframe (Örn.: 200D) [Defaultta burası tabloda gözükmez ayarlardan açın aşağıda]", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 5, input.string("", title="6. Timeframe Label (Örn.: 200 Day)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframes, 6, input.string("", title="7. Timeframe (Örn.: 5) [Defaultta burası tabloda gözükmez ayarlardan açın aşağıda]", tooltip="Örnek: 1W, 1D, 240, 60, 15", group = "Trend & Multi ATR - Timeframe Definitions"))
+array.set(timeframe_labels, 6, input.string("", title="7. Timeframe Label (Örn.: 5 Dakika)", tooltip="Tabloda görünecek etiket", group = "Trend & Multi ATR - Timeframe Definitions"))
+
+// Zaman Dilimlerini Aktif/Pasif Yapma Ayarları
+var bool[] enabled = array.new_bool(7, false)
+array.set(enabled, 0, input.bool(true, title="Enable 1. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 1, input.bool(true, title="Enable 2. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 2, input.bool(true, title="Enable 3. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 3, input.bool(true, title="Enable 4. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 4, input.bool(true, title="Enable 5. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 5, input.bool(false, title="Enable 6. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+array.set(enabled, 6, input.bool(false, title="Enable 7. Timeframe", group = "Trend & Multi ATR - Timeframe Enables"))
+
+// Farklı zaman dilimlerinden SMA trendlerini hesaplama fonksiyonu
+f_get_trend(res) =>
+    fast_sma_tf = request.security(syminfo.tickerid, res, ta.sma(close, fast_sma_period))
+    slow_sma_tf = request.security(syminfo.tickerid, res, ta.sma(close, slow_sma_period))
+    na(fast_sma_tf) or na(slow_sma_tf) ? na : fast_sma_tf > slow_sma_tf ? 'Up' : 'Down'
+
+// SMA Trendlerini Hesaplama
+var string[] trend_values = array.new_string(7, "")
+// NEW UNROLLED LOGIC for trend_values
+if (array.get(enabled, 0) and array.get(timeframes, 0) != "")
+    array.set(trend_values, 0, f_get_trend(array.get(timeframes, 0)))
+else
+    array.set(trend_values, 0, "")
+if (array.get(enabled, 1) and array.get(timeframes, 1) != "")
+    array.set(trend_values, 1, f_get_trend(array.get(timeframes, 1)))
+else
+    array.set(trend_values, 1, "")
+if (array.get(enabled, 2) and array.get(timeframes, 2) != "")
+    array.set(trend_values, 2, f_get_trend(array.get(timeframes, 2)))
+else
+    array.set(trend_values, 2, "")
+if (array.get(enabled, 3) and array.get(timeframes, 3) != "")
+    array.set(trend_values, 3, f_get_trend(array.get(timeframes, 3)))
+else
+    array.set(trend_values, 3, "")
+if (array.get(enabled, 4) and array.get(timeframes, 4) != "")
+    array.set(trend_values, 4, f_get_trend(array.get(timeframes, 4)))
+else
+    array.set(trend_values, 4, "")
+if (array.get(enabled, 5) and array.get(timeframes, 5) != "")
+    array.set(trend_values, 5, f_get_trend(array.get(timeframes, 5)))
+else
+    array.set(trend_values, 5, "")
+if (array.get(enabled, 6) and array.get(timeframes, 6) != "")
+    array.set(trend_values, 6, f_get_trend(array.get(timeframes, 6)))
+else
+    array.set(trend_values, 6, "")
+
+// Grafikte SMA çizgilerini gösterme
+plot(fast_sma, color = fast_sma_color, linewidth = 2, title = 'Fast SMA')
+plot(slow_sma, color = slow_sma_color, linewidth = 2, title = 'Slow SMA')
+plot(show_first_sma ? first_sma : na, color = first_sma_color, linewidth = 1, title = '1. SMA')
+plot(show_second_sma ? second_sma : na, color = second_sma_color, linewidth = 1, title = '2. SMA')
+plot(show_third_sma ? third_sma : na, color = third_sma_color, linewidth = 1, title = '3. SMA')
+
+// ATR Hesaplama fonksiyonu
+f_get_atr(res) =>
+    request.security(syminfo.tickerid, res, ta.atr(14))
+
+// Farklı zaman dilimlerinden ATR değerleri
+var float[] atr_values = array.new_float(7, na)
+// NEW UNROLLED LOGIC for atr_values
+if (array.get(enabled, 0) and array.get(timeframes, 0) != "")
+    array.set(atr_values, 0, f_get_atr(array.get(timeframes, 0)))
+else
+    array.set(atr_values, 0, na)
+if (array.get(enabled, 1) and array.get(timeframes, 1) != "")
+    array.set(atr_values, 1, f_get_atr(array.get(timeframes, 1)))
+else
+    array.set(atr_values, 1, na)
+if (array.get(enabled, 2) and array.get(timeframes, 2) != "")
+    array.set(atr_values, 2, f_get_atr(array.get(timeframes, 2)))
+else
+    array.set(atr_values, 2, na)
+if (array.get(enabled, 3) and array.get(timeframes, 3) != "")
+    array.set(atr_values, 3, f_get_atr(array.get(timeframes, 3)))
+else
+    array.set(atr_values, 3, na)
+if (array.get(enabled, 4) and array.get(timeframes, 4) != "")
+    array.set(atr_values, 4, f_get_atr(array.get(timeframes, 4)))
+else
+    array.set(atr_values, 4, na)
+if (array.get(enabled, 5) and array.get(timeframes, 5) != "")
+    array.set(atr_values, 5, f_get_atr(array.get(timeframes, 5)))
+else
+    array.set(atr_values, 5, na)
+if (array.get(enabled, 6) and array.get(timeframes, 6) != "")
+    array.set(atr_values, 6, f_get_atr(array.get(timeframes, 6)))
+else
+    array.set(atr_values, 6, na)
+
+// SMA Trend Tablosu
+var table trend_table = table.new(position.bottom_right, 2, 8, border_color = table_border_color)
+if bar_index == 0
+    table.cell(trend_table, 0, 0, 'Timeframe', bgcolor = table_header_bgcolor, text_color = table_header_textcolor)
+    table.cell(trend_table, 1, 0, 'Trend', bgcolor = table_header_bgcolor, text_color = table_header_textcolor)
+
+if barstate.islast
+    row = 1
+    for i = 0 to 6
+        if array.get(enabled, i) and array.get(timeframes, i) != ""
+            table.cell(trend_table, 0, row, array.get(timeframe_labels, i), text_color = timeframe_text_color)
+            table.cell(trend_table, 1, row, array.get(trend_values, i), bgcolor = array.get(trend_values, i) == 'Up' ? up_trend_color : down_trend_color, text_color = text_color)
+            row += 1
+
+// ATR Tablosu
+var table atr_table = table.new(position.top_right, 2, 8, border_color = color.blue)
+
+if bar_index == 0
+    table.cell(atr_table, 0, 0, 'Timeframe', bgcolor = color.blue, text_color = table_header_textcolor)
+    table.cell(atr_table, 1, 0, 'ATR', bgcolor = color.blue, text_color = table_header_textcolor)
+
+if barstate.islast
+    row = 1
+    for i = 0 to 6
+        if array.get(enabled, i) and array.get(timeframes, i) != ""
+            table.cell(atr_table, 0, row, array.get(timeframe_labels, i), text_color = timeframe_text_color)
+            table.cell(atr_table, 1, row, str.tostring(array.get(atr_values, i)), text_color = text_color)
+            row += 1
+
+    ////////////////////////////////// DC KANALLARI
+
+lowerdc =  ta.lowest(lengthdc)
+upperdc =  ta.highest(lengthdc)
+basisdc =  math.avg(upperdc, lowerdc)
+plot(basisdc,     "Basis", color = #FF6D00, offset = offsetdc)
+u = plot(ShowDC ? upperdc : na, "Upper", color = #2962FF, offset = offsetdc)
+l = plot(ShowDC ? lowerdc : na, "Lower", color = #2962FF, offset = offsetdc)
+fill(u , l, color = color.rgb(33, 150, 243, 95), title = "Background")
